@@ -47,6 +47,49 @@ void main() {
       }
     });
 
+    test('generated layouts use more board space as levels increase', () {
+      final generatedLevels = createGeneratedNatureLevels(
+        random: math.Random(12),
+      );
+
+      expect(generatedLevels.map(_usedCellCount), [16, 20, 22, 24, 25, 25]);
+    });
+
+    test('generated pairs avoid obvious straight-line connections', () {
+      final generatedLevels = createGeneratedNatureLevels(
+        random: math.Random(41),
+      );
+
+      for (final generatedLevel in generatedLevels) {
+        final endpointPositions = _endpointPositionsFor(generatedLevel);
+        final minimumShortestPathCells = generatedLevel.level.pairs.length <= 6
+            ? 4
+            : 3;
+
+        for (final path in generatedLevel.solutionPaths.values) {
+          expect(
+            _sharesStraightAxis(path.cells.first, path.cells.last),
+            isFalse,
+            reason: '${generatedLevel.level.id} ${path.relationshipId}',
+          );
+          expect(
+            _turnCount(path.cells),
+            greaterThanOrEqualTo(1),
+            reason: '${generatedLevel.level.id} ${path.relationshipId}',
+          );
+          expect(
+            _shortestAvailablePathCellCount(
+              path.cells.first,
+              path.cells.last,
+              blockedEndpoints: endpointPositions,
+            ),
+            greaterThanOrEqualTo(minimumShortestPathCells),
+            reason: '${generatedLevel.level.id} ${path.relationshipId}',
+          );
+        }
+      }
+    });
+
     test('different seeds create different endpoint layouts', () {
       final first = createGeneratedNatureLevels(random: math.Random(4));
       final second = createGeneratedNatureLevels(random: math.Random(99));
@@ -187,6 +230,32 @@ void main() {
       expect(controller.completedPaths, isEmpty);
     });
 
+    test('wrong endpoint creates rejected path and clears active drag', () {
+      final controller = GameController(initialLevel: _ruleLevel);
+
+      controller.startPath(const BoardPosition(row: 0, column: 0));
+
+      expect(
+        controller.extendPath(const BoardPosition(row: 1, column: 0)),
+        isTrue,
+      );
+
+      final rejectedPath = controller.rejectWrongEndpoint(
+        const BoardPosition(row: 1, column: 1),
+      );
+
+      expect(rejectedPath, isNotNull);
+      expect(rejectedPath!.cells, const [
+        BoardPosition(row: 0, column: 0),
+        BoardPosition(row: 1, column: 0),
+        BoardPosition(row: 1, column: 1),
+      ]);
+      expect(controller.activePath, isEmpty);
+      expect(controller.isDragging, isFalse);
+      expect(controller.completedPaths, isEmpty);
+      expect(controller.moves, 1);
+    });
+
     test(
       'correct endpoint is rejected when path has fewer than two segments',
       () {
@@ -305,6 +374,22 @@ bool _isWithinPairCap(GeneratedNatureLevel generatedLevel) {
   return generatedLevel.level.pairs.length <= GameConstants.maxPairsPerLevel;
 }
 
+int _usedCellCount(GeneratedNatureLevel generatedLevel) {
+  return generatedLevel.solutionPaths.values.fold<int>(
+    0,
+    (total, path) => total + path.cells.length,
+  );
+}
+
+Set<BoardPosition> _endpointPositionsFor(GeneratedNatureLevel generatedLevel) {
+  return {
+    for (final path in generatedLevel.solutionPaths.values) ...[
+      path.cells.first,
+      path.cells.last,
+    ],
+  };
+}
+
 String _levelSignature(List<GeneratedNatureLevel> generatedLevels) {
   return generatedLevels
       .expand((generatedLevel) => generatedLevel.level.pairs)
@@ -343,6 +428,89 @@ bool _areAdjacent(BoardPosition first, BoardPosition second) {
   return (first.row - second.row).abs() +
           (first.column - second.column).abs() ==
       1;
+}
+
+bool _sharesStraightAxis(BoardPosition first, BoardPosition second) {
+  return first.row == second.row || first.column == second.column;
+}
+
+int _turnCount(List<BoardPosition> path) {
+  if (path.length < 3) {
+    return 0;
+  }
+
+  var turns = 0;
+  var previousRowDirection = path[1].row - path[0].row;
+  var previousColumnDirection = path[1].column - path[0].column;
+
+  for (var index = 2; index < path.length; index += 1) {
+    final rowDirection = path[index].row - path[index - 1].row;
+    final columnDirection = path[index].column - path[index - 1].column;
+    if (rowDirection != previousRowDirection ||
+        columnDirection != previousColumnDirection) {
+      turns += 1;
+    }
+    previousRowDirection = rowDirection;
+    previousColumnDirection = columnDirection;
+  }
+
+  return turns;
+}
+
+int _shortestAvailablePathCellCount(
+  BoardPosition start,
+  BoardPosition target, {
+  required Set<BoardPosition> blockedEndpoints,
+}) {
+  final blockedPositions = {
+    for (final endpoint in blockedEndpoints)
+      if (endpoint != start && endpoint != target) endpoint,
+  };
+  final visited = <BoardPosition>{start};
+  final queue = <({BoardPosition position, int cells})>[
+    (position: start, cells: 1),
+  ];
+  var cursor = 0;
+
+  while (cursor < queue.length) {
+    final current = queue[cursor];
+    cursor += 1;
+
+    for (final neighbor in _neighbors(current.position)) {
+      if (blockedPositions.contains(neighbor) || !visited.add(neighbor)) {
+        continue;
+      }
+
+      final cellCount = current.cells + 1;
+      if (neighbor == target) {
+        return cellCount;
+      }
+
+      queue.add((position: neighbor, cells: cellCount));
+    }
+  }
+
+  return GameConstants.boardRows * GameConstants.boardColumns + 1;
+}
+
+Iterable<BoardPosition> _neighbors(BoardPosition position) sync* {
+  const offsets = [
+    (row: 1, column: 0),
+    (row: -1, column: 0),
+    (row: 0, column: 1),
+    (row: 0, column: -1),
+  ];
+
+  for (final offset in offsets) {
+    final row = position.row + offset.row;
+    final column = position.column + offset.column;
+    if (row >= 0 &&
+        row < GameConstants.boardRows &&
+        column >= 0 &&
+        column < GameConstants.boardColumns) {
+      yield BoardPosition(row: row, column: column);
+    }
+  }
 }
 
 BoardPosition _firstNonEndpoint(GameController controller) {

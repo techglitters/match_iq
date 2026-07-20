@@ -13,12 +13,13 @@ void main() {
     await tester.pump(
       GameConstants.splashDuration + const Duration(milliseconds: 100),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('Match things that belong together'), findsOneWidget);
 
     await tester.tap(find.text('Play'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Nature 1'), findsOneWidget);
     expect(find.text('Pairs'), findsOneWidget);

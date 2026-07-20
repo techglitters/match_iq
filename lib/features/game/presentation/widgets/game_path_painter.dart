@@ -12,6 +12,8 @@ class GamePathPainter extends CustomPainter {
     required this.activePath,
     required this.rollbackPath,
     required this.rollbackProgress,
+    required this.rollbackColor,
+    required this.rollbackShimmerProgress,
     required this.rows,
     required this.columns,
     required this.endpointPositions,
@@ -21,6 +23,8 @@ class GamePathPainter extends CustomPainter {
   final GamePath? activePath;
   final GamePath? rollbackPath;
   final double rollbackProgress;
+  final Color? rollbackColor;
+  final double? rollbackShimmerProgress;
   final int rows;
   final int columns;
   final Set<BoardPosition> endpointPositions;
@@ -55,9 +59,11 @@ class GamePathPainter extends CustomPainter {
         canvas,
         size,
         retractingPath,
-        GameConstants.colorForRelationship(retractingPath.relationshipId),
-        opacity: 0.52 * progress,
+        rollbackColor ??
+            GameConstants.colorForRelationship(retractingPath.relationshipId),
+        opacity: rollbackColor == null ? 0.52 * progress : 0.82 * progress,
         visibleFraction: progress,
+        shimmerProgress: rollbackShimmerProgress,
       );
     }
   }
@@ -69,6 +75,7 @@ class GamePathPainter extends CustomPainter {
     Color color, {
     required double opacity,
     double visibleFraction = 1,
+    double? shimmerProgress,
   }) {
     if (path.cells.length < 2) {
       return;
@@ -84,13 +91,29 @@ class GamePathPainter extends CustomPainter {
       ..isAntiAlias = true;
 
     final drawnPath = _buildTrimmedPath(path, size, strokeWidth);
+    final visiblePath = visibleFraction >= 1
+        ? drawnPath
+        : _extractPathFraction(drawnPath, visibleFraction);
 
-    if (visibleFraction >= 1) {
-      canvas.drawPath(drawnPath, paint);
+    canvas.drawPath(visiblePath, paint);
+
+    final shimmer = shimmerProgress;
+    if (shimmer == null || shimmer <= 0) {
       return;
     }
 
-    canvas.drawPath(_extractPathFraction(drawnPath, visibleFraction), paint);
+    final shimmerStrength = shimmer.clamp(0, 1).toDouble();
+    final shimmerEnd = math.min(visibleFraction, shimmerStrength);
+    final shimmerStart = math.max(0.0, shimmerEnd - 0.18);
+    final shimmerPath = _extractPathWindow(drawnPath, shimmerStart, shimmerEnd);
+    final shimmerPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.54 * shimmerStrength)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = strokeWidth * 0.44
+      ..isAntiAlias = true;
+    canvas.drawPath(shimmerPath, shimmerPaint);
   }
 
   Path _buildTrimmedPath(GamePath path, Size size, double strokeWidth) {
@@ -144,6 +167,52 @@ class GamePathPainter extends CustomPainter {
     return visiblePath;
   }
 
+  Path _extractPathWindow(
+    Path source,
+    double startFraction,
+    double endFraction,
+  ) {
+    final start = startFraction.clamp(0, 1).toDouble();
+    final end = endFraction.clamp(start, 1).toDouble();
+    if (end <= start) {
+      return Path();
+    }
+
+    final metrics = source.computeMetrics().toList();
+    final totalLength = metrics.fold<double>(
+      0,
+      (total, metric) => total + metric.length,
+    );
+    var remainingSkipLength = totalLength * start;
+    var remainingTakeLength = totalLength * (end - start);
+    final windowPath = Path();
+
+    for (final metric in metrics) {
+      if (remainingTakeLength <= 0) {
+        break;
+      }
+
+      if (remainingSkipLength >= metric.length) {
+        remainingSkipLength -= metric.length;
+        continue;
+      }
+
+      final localStart = remainingSkipLength;
+      final localLength = math.min(
+        metric.length - localStart,
+        remainingTakeLength,
+      );
+      windowPath.addPath(
+        metric.extractPath(localStart, localStart + localLength),
+        Offset.zero,
+      );
+      remainingSkipLength = 0;
+      remainingTakeLength -= localLength;
+    }
+
+    return windowPath;
+  }
+
   Offset _pointMovedToward(Offset from, Offset toward, double distance) {
     final delta = toward - from;
     final length = delta.distance;
@@ -180,6 +249,8 @@ class GamePathPainter extends CustomPainter {
         oldDelegate.activePath != activePath ||
         oldDelegate.rollbackPath != rollbackPath ||
         oldDelegate.rollbackProgress != rollbackProgress ||
+        oldDelegate.rollbackColor != rollbackColor ||
+        oldDelegate.rollbackShimmerProgress != rollbackShimmerProgress ||
         oldDelegate.rows != rows ||
         oldDelegate.columns != columns ||
         oldDelegate.endpointPositions != endpointPositions;

@@ -122,6 +122,29 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
+  GamePath? rejectWrongEndpoint(BoardPosition position) {
+    if (!canRejectWrongEndpoint(position)) {
+      return null;
+    }
+
+    final relationshipId = activeRelationshipId;
+    if (relationshipId == null) {
+      return null;
+    }
+
+    final rejectedCells = List<BoardPosition>.of(activePath)..add(position);
+    final rejectedPath = GamePath(
+      relationshipId: relationshipId,
+      cells: List<BoardPosition>.unmodifiable(rejectedCells),
+      isComplete: false,
+    );
+
+    moves += 1;
+    _clearActivePath();
+    notifyListeners();
+    return rejectedPath;
+  }
+
   bool finishPath() {
     if (!_hasDragAttempt && !isDragging) {
       return false;
@@ -206,6 +229,20 @@ class GameController extends ChangeNotifier {
     }
 
     return isCorrectTarget(position);
+  }
+
+  bool canRejectWrongEndpoint(BoardPosition position) {
+    if (!isDragging || activePath.isEmpty || isLevelComplete) {
+      return false;
+    }
+
+    if (!_isPositionInsideBoard(position) ||
+        !arePositionsAdjacent(activePath.last, position) ||
+        activePath.contains(position)) {
+      return false;
+    }
+
+    return isEndpoint(position) && !isCorrectTarget(position);
   }
 
   bool arePositionsAdjacent(BoardPosition first, BoardPosition second) {

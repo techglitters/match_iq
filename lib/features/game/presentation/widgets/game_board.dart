@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/game_constants.dart';
@@ -22,6 +23,8 @@ class _GameBoardState extends State<GameBoard>
   late final AnimationController _rollbackController;
   BoardPosition? _lastPanPosition;
   GamePath? _rollbackPath;
+  Color? _rollbackColor;
+  BoardPosition? _invalidEndpointPosition;
 
   @override
   void initState() {
@@ -92,6 +95,10 @@ class _GameBoardState extends State<GameBoard>
                       activePath: controller.activeGamePath,
                       rollbackPath: _rollbackPath,
                       rollbackProgress: _rollbackController.value,
+                      rollbackColor: _rollbackColor,
+                      rollbackShimmerProgress: _rollbackColor == null
+                          ? null
+                          : _rollbackController.value,
                       rows: level.rows,
                       columns: level.columns,
                       endpointPositions: endpointPositions,
@@ -107,6 +114,10 @@ class _GameBoardState extends State<GameBoard>
                       isConnected: controller.completedPaths.containsKey(
                         placement.relationship.id,
                       ),
+                      invalidFeedbackProgress:
+                          _invalidEndpointPosition == placement.sourcePosition
+                          ? _rollbackController.value
+                          : 0,
                     ),
                     _EndpointPlacement(
                       level: level,
@@ -117,6 +128,10 @@ class _GameBoardState extends State<GameBoard>
                       isConnected: controller.completedPaths.containsKey(
                         placement.relationship.id,
                       ),
+                      invalidFeedbackProgress:
+                          _invalidEndpointPosition == placement.targetPosition
+                          ? _rollbackController.value
+                          : 0,
                     ),
                   ],
                   Positioned.fill(
@@ -171,7 +186,15 @@ class _GameBoardState extends State<GameBoard>
     }
 
     _lastPanPosition = position;
-    context.read<GameController>().extendPath(position);
+    final controller = context.read<GameController>();
+    final rejectedPath = controller.rejectWrongEndpoint(position);
+    if (rejectedPath != null) {
+      _lastPanPosition = null;
+      _triggerWrongEndpointFeedback(rejectedPath, position);
+      return;
+    }
+
+    controller.extendPath(position);
   }
 
   void _handlePanEnd() {
@@ -198,17 +221,32 @@ class _GameBoardState extends State<GameBoard>
     }
   }
 
-  void _startRollback(GamePath path) {
+  void _triggerWrongEndpointFeedback(GamePath path, BoardPosition position) {
+    HapticFeedback.mediumImpact();
+    _startRollback(
+      path,
+      color: Theme.of(context).colorScheme.error,
+      invalidEndpointPosition: position,
+      duration: GameConstants.wrongPathRollbackDuration,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _startRollback(
+    GamePath path, {
+    Color? color,
+    BoardPosition? invalidEndpointPosition,
+    Duration duration = GameConstants.pathRollbackDuration,
+    Curve curve = Curves.easeInCubic,
+  }) {
     _rollbackController.stop();
     _rollbackController.value = 1;
     setState(() {
       _rollbackPath = path;
+      _rollbackColor = color;
+      _invalidEndpointPosition = invalidEndpointPosition;
     });
-    _rollbackController.animateBack(
-      0,
-      duration: GameConstants.pathRollbackDuration,
-      curve: Curves.easeInCubic,
-    );
+    _rollbackController.animateBack(0, duration: duration, curve: curve);
   }
 
   void _handleRollbackTick() {
@@ -227,6 +265,8 @@ class _GameBoardState extends State<GameBoard>
     _rollbackController.stop();
     setState(() {
       _rollbackPath = null;
+      _rollbackColor = null;
+      _invalidEndpointPosition = null;
       _rollbackController.value = 0;
     });
   }
@@ -243,6 +283,8 @@ class _GameBoardState extends State<GameBoard>
 
     setState(() {
       _rollbackPath = null;
+      _rollbackColor = null;
+      _invalidEndpointPosition = null;
     });
   }
 
@@ -287,6 +329,7 @@ class _EndpointPlacement extends StatelessWidget {
     required this.boardSize,
     required this.isSource,
     required this.isConnected,
+    required this.invalidFeedbackProgress,
   });
 
   final GameLevel level;
@@ -295,6 +338,7 @@ class _EndpointPlacement extends StatelessWidget {
   final double boardSize;
   final bool isSource;
   final bool isConnected;
+  final double invalidFeedbackProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +357,12 @@ class _EndpointPlacement extends StatelessWidget {
       top: position.row * cellHeight + (cellHeight - iconSize) / 2,
       width: iconSize,
       height: iconSize,
-      child: EndpointIcon(item: item, color: color, isConnected: isConnected),
+      child: EndpointIcon(
+        item: item,
+        color: color,
+        isConnected: isConnected,
+        invalidFeedbackProgress: invalidFeedbackProgress,
+      ),
     );
   }
 }

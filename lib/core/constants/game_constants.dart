@@ -12,6 +12,7 @@ class GameConstants {
       boardRows * boardColumns ~/ minimumCellsPerPath;
   static const Duration splashDuration = Duration(milliseconds: 1200);
   static const Duration pathRollbackDuration = Duration(milliseconds: 260);
+  static const Duration wrongPathRollbackDuration = Duration(milliseconds: 420);
   static const double endpointIconScale = 0.72;
 
   static const Map<String, Color> relationshipColors = {
