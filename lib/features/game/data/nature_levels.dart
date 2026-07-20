@@ -53,12 +53,25 @@ GeneratedNatureLevel generateNatureLevel({
   final relationships = List<LearningRelationship>.of(LearningRelationships.all)
     ..shuffle(levelRandom);
   final selectedRelationships = relationships.take(cappedPairCount).toList();
-  final boardTraversal = _randomBoardTraversal(levelRandom);
-  final pathSegments = _sliceTraversalIntoPaths(
-    traversal: boardTraversal,
-    pairCount: cappedPairCount,
-    random: levelRandom,
-  );
+  var pathSegments = <List<BoardPosition>>[];
+
+  for (var attempt = 0; attempt < 120; attempt += 1) {
+    final boardTraversal = _randomBoardTraversal(levelRandom);
+    final candidateSegments = _sliceTraversalIntoPaths(
+      traversal: boardTraversal,
+      pairCount: cappedPairCount,
+      random: levelRandom,
+    );
+
+    if (_hasValidEndpointSpacing(candidateSegments)) {
+      pathSegments = candidateSegments;
+      break;
+    }
+  }
+
+  if (pathSegments.isEmpty) {
+    pathSegments = _fallbackPathSegments(cappedPairCount);
+  }
 
   final placements = <LevelPairPlacement>[];
   final solutionPaths = <String, GamePath>{};
@@ -91,6 +104,14 @@ GeneratedNatureLevel generateNatureLevel({
     ),
     solutionPaths: Map<String, GamePath>.unmodifiable(solutionPaths),
   );
+}
+
+bool _hasValidEndpointSpacing(List<List<BoardPosition>> pathSegments) {
+  return pathSegments.every((path) {
+    return path.length >= GameConstants.minimumCellsPerPath &&
+        _distance(path.first, path.last) >=
+            GameConstants.minimumLineSegmentsPerPath;
+  });
 }
 
 List<List<BoardPosition>> _sliceTraversalIntoPaths({
@@ -132,13 +153,19 @@ List<int> _randomPathLengths({
   final targetUsedCells = math.min(
     _totalCellCount,
     math.max(
-      pairCount * 2,
-      GameConstants.boardRows + GameConstants.boardColumns + pairCount + 4,
+      pairCount * GameConstants.minimumCellsPerPath,
+      pairCount * GameConstants.minimumCellsPerPath +
+          (pairCount - GameConstants.startingPairsPerLevel) * 2 +
+          2,
     ),
   );
   final maxPathLength = _maxPathLength(pairCount);
-  final lengths = List<int>.filled(pairCount, 2);
-  var extraCells = targetUsedCells - pairCount * 2;
+  final lengths = List<int>.filled(
+    pairCount,
+    GameConstants.minimumCellsPerPath,
+  );
+  var extraCells =
+      targetUsedCells - pairCount * GameConstants.minimumCellsPerPath;
 
   while (extraCells > 0) {
     final expandableIndexes = [
@@ -169,6 +196,53 @@ List<int> _randomGapLengths({
   }
 
   return gaps;
+}
+
+List<List<BoardPosition>> _fallbackPathSegments(int pairCount) {
+  const paths = [
+    [
+      BoardPosition(row: 0, column: 0),
+      BoardPosition(row: 0, column: 1),
+      BoardPosition(row: 0, column: 2),
+    ],
+    [
+      BoardPosition(row: 0, column: 3),
+      BoardPosition(row: 0, column: 4),
+      BoardPosition(row: 1, column: 4),
+    ],
+    [
+      BoardPosition(row: 1, column: 0),
+      BoardPosition(row: 1, column: 1),
+      BoardPosition(row: 1, column: 2),
+    ],
+    [
+      BoardPosition(row: 1, column: 3),
+      BoardPosition(row: 2, column: 3),
+      BoardPosition(row: 2, column: 2),
+    ],
+    [
+      BoardPosition(row: 2, column: 0),
+      BoardPosition(row: 2, column: 1),
+      BoardPosition(row: 3, column: 1),
+    ],
+    [
+      BoardPosition(row: 2, column: 4),
+      BoardPosition(row: 3, column: 4),
+      BoardPosition(row: 3, column: 3),
+    ],
+    [
+      BoardPosition(row: 3, column: 0),
+      BoardPosition(row: 4, column: 0),
+      BoardPosition(row: 4, column: 1),
+    ],
+    [
+      BoardPosition(row: 3, column: 2),
+      BoardPosition(row: 4, column: 2),
+      BoardPosition(row: 4, column: 3),
+    ],
+  ];
+
+  return List<List<BoardPosition>>.unmodifiable(paths.take(pairCount));
 }
 
 List<BoardPosition> _randomBoardTraversal(math.Random random) {
@@ -290,6 +364,10 @@ BoardPosition _transformPosition(BoardPosition position, int transform) {
 
 int _openNeighborCount(BoardPosition position, Set<BoardPosition> seen) {
   return _neighbors(position).where((cell) => !seen.contains(cell)).length;
+}
+
+int _distance(BoardPosition first, BoardPosition second) {
+  return (first.row - second.row).abs() + (first.column - second.column).abs();
 }
 
 Iterable<BoardPosition> _allBoardCells() sync* {

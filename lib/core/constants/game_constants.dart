@@ -6,7 +6,10 @@ class GameConstants {
   static const int boardRows = 5;
   static const int boardColumns = 5;
   static const int startingPairsPerLevel = 3;
-  static int get maxPairsPerLevel => boardRows * boardColumns ~/ 2;
+  static const int minimumLineSegmentsPerPath = 2;
+  static int get minimumCellsPerPath => minimumLineSegmentsPerPath + 1;
+  static int get maxPairsPerLevel =>
+      boardRows * boardColumns ~/ minimumCellsPerPath;
   static const Duration splashDuration = Duration(milliseconds: 1200);
   static const Duration pathRollbackDuration = Duration(milliseconds: 260);
   static const double endpointIconScale = 0.72;

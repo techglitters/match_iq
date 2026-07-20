@@ -17,7 +17,8 @@ void main() {
         random: math.Random(12),
       );
 
-      expect(GameConstants.maxPairsPerLevel, 12);
+      expect(GameConstants.minimumLineSegmentsPerPath, 2);
+      expect(GameConstants.maxPairsPerLevel, 8);
       expect(generatedLevels.map((level) => level.level.pairs.length), [
         3,
         4,
@@ -25,12 +26,25 @@ void main() {
         6,
         7,
         8,
-        9,
-        10,
-        11,
-        12,
       ]);
       expect(generatedLevels.every(_isWithinPairCap), isTrue);
+    });
+
+    test('generated paths require at least two line segments', () {
+      final generatedLevels = createGeneratedNatureLevels(
+        random: math.Random(31),
+      );
+
+      for (final generatedLevel in generatedLevels) {
+        for (final path in generatedLevel.solutionPaths.values) {
+          expect(path.cells.length, greaterThanOrEqualTo(3));
+          expect(
+            _areAdjacent(path.cells.first, path.cells.last),
+            isFalse,
+            reason: '${generatedLevel.level.id} ${path.relationshipId}',
+          );
+        }
+      }
     });
 
     test('different seeds create different endpoint layouts', () {
@@ -173,6 +187,22 @@ void main() {
       expect(controller.completedPaths, isEmpty);
     });
 
+    test(
+      'correct endpoint is rejected when path has fewer than two segments',
+      () {
+        final controller = GameController(initialLevel: _shortPathRuleLevel);
+
+        controller.startPath(const BoardPosition(row: 0, column: 0));
+
+        expect(
+          controller.extendPath(const BoardPosition(row: 0, column: 1)),
+          isTrue,
+        );
+        expect(controller.finishPath(), isFalse);
+        expect(controller.completedPaths, isEmpty);
+      },
+    );
+
     test('correct endpoint saves the path', () {
       final generatedLevel = _generatedLevel();
       final controller = GameController(initialLevel: generatedLevel.level);
@@ -249,6 +279,20 @@ const _ruleLevel = GameLevel(
   ],
 );
 
+const _shortPathRuleLevel = GameLevel(
+  id: 'short_path_rule_test',
+  name: 'Short Path Rule Test',
+  rows: GameConstants.boardRows,
+  columns: GameConstants.boardColumns,
+  pairs: [
+    LevelPairPlacement(
+      relationship: LearningRelationships.seedToFlower,
+      sourcePosition: BoardPosition(row: 0, column: 0),
+      targetPosition: BoardPosition(row: 0, column: 1),
+    ),
+  ],
+);
+
 GeneratedNatureLevel _generatedLevel() {
   return generateNatureLevel(
     levelNumber: 1,
@@ -287,12 +331,18 @@ void _completeGamePath(GameController controller, GamePath path) {
 }
 
 void _completePath(GameController controller, List<BoardPosition> cells) {
-  expect(cells.length, greaterThan(1));
+  expect(cells.length, greaterThanOrEqualTo(GameConstants.minimumCellsPerPath));
   expect(controller.startPath(cells.first), isTrue);
   for (final position in cells.skip(1)) {
     expect(controller.extendPath(position), isTrue);
   }
   expect(controller.finishPath(), isTrue);
+}
+
+bool _areAdjacent(BoardPosition first, BoardPosition second) {
+  return (first.row - second.row).abs() +
+          (first.column - second.column).abs() ==
+      1;
 }
 
 BoardPosition _firstNonEndpoint(GameController controller) {

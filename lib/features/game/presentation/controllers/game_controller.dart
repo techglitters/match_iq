@@ -132,7 +132,7 @@ class GameController extends ChangeNotifier {
     final relationshipId = activeRelationshipId;
     final isValidPath =
         relationshipId != null &&
-        activePath.length > 1 &&
+        activePath.length >= GameConstants.minimumCellsPerPath &&
         isCorrectTarget(activePath.last);
 
     if (isValidPath) {
