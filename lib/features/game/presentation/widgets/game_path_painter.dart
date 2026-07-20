@@ -82,20 +82,13 @@ class GamePathPainter extends CustomPainter {
     }
 
     final strokeWidth = _strokeWidth(size);
-    final paint = Paint()
-      ..color = color.withValues(alpha: opacity)
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = strokeWidth
-      ..isAntiAlias = true;
 
     final drawnPath = _buildTrimmedPath(path, size, strokeWidth);
     final visiblePath = visibleFraction >= 1
         ? drawnPath
         : _extractPathFraction(drawnPath, visibleFraction);
 
-    canvas.drawPath(visiblePath, paint);
+    _drawGlowingStroke(canvas, size, visiblePath, color, opacity);
 
     final shimmer = shimmerProgress;
     if (shimmer == null || shimmer <= 0) {
@@ -107,13 +100,64 @@ class GamePathPainter extends CustomPainter {
     final shimmerStart = math.max(0.0, shimmerEnd - 0.18);
     final shimmerPath = _extractPathWindow(drawnPath, shimmerStart, shimmerEnd);
     final shimmerPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.54 * shimmerStrength)
+      ..color = Colors.white.withValues(alpha: 0.74 * shimmerStrength)
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = strokeWidth * 0.44
+      ..strokeWidth = strokeWidth * 0.48
       ..isAntiAlias = true;
     canvas.drawPath(shimmerPath, shimmerPaint);
+  }
+
+  void _drawGlowingStroke(
+    Canvas canvas,
+    Size size,
+    Path path,
+    Color color,
+    double opacity,
+  ) {
+    final strokeWidth = _strokeWidth(size);
+    final glowSigma = _glowSigma(size);
+    final glowPaint = Paint()
+      ..color = color.withValues(alpha: opacity * 0.28)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = strokeWidth * 3.8
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, glowSigma)
+      ..isAntiAlias = true;
+    final softPaint = Paint()
+      ..color = color.withValues(alpha: opacity * 0.34)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = strokeWidth * 2.15
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, glowSigma * 0.48)
+      ..isAntiAlias = true;
+    final bodyPaint = Paint()
+      ..color = color.withValues(alpha: opacity * 0.88)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = strokeWidth
+      ..isAntiAlias = true;
+    final corePaint = Paint()
+      ..color = Color.lerp(
+        color,
+        Colors.white,
+        0.76,
+      )!.withValues(alpha: math.min(1, opacity * 1.08))
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = strokeWidth * 0.36
+      ..isAntiAlias = true;
+
+    canvas
+      ..drawPath(path, glowPaint)
+      ..drawPath(path, softPaint)
+      ..drawPath(path, bodyPaint)
+      ..drawPath(path, corePaint);
   }
 
   Path _buildTrimmedPath(GamePath path, Size size, double strokeWidth) {
@@ -236,7 +280,11 @@ class GamePathPainter extends CustomPainter {
   }
 
   double _strokeWidth(Size size) {
-    return _cellExtent(size) * 0.22;
+    return _cellExtent(size) * 0.14;
+  }
+
+  double _glowSigma(Size size) {
+    return math.max(3, _cellExtent(size) * 0.07);
   }
 
   double _endpointRadius(Size size) {
