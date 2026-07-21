@@ -54,16 +54,7 @@ class AppRoutes {
   }
 
   static Widget _createGameScreen(int levelNumber) {
-    final levels = createNatureLevels();
-    final initialLevel = createNatureLevel(levelNumber: levelNumber);
-
-    return ChangeNotifierProvider(
-      create: (_) => GameController(initialLevel: initialLevel, levels: levels),
-      child: GameScreen(
-        themeId: ThemeCatalog.natureThemeId,
-        levelNumber: initialLevel.levelNumber,
-      ),
-    );
+    return _NatureGameScope(levelNumber: levelNumber);
   }
 
   static int? _parseNatureLevel(String? routeName) {
@@ -77,5 +68,29 @@ class AppRoutes {
     }
 
     return parsed.clamp(1, natureLevelCount).toInt();
+  }
+}
+
+class _NatureGameScope extends StatelessWidget {
+  const _NatureGameScope({required this.levelNumber});
+
+  final int levelNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = NatureBoardProfile.forSize(MediaQuery.sizeOf(context));
+    final levels = createNatureLevels(profile: profile);
+    final initialLevel = createNatureLevel(
+      levelNumber: levelNumber,
+      profile: profile,
+    );
+
+    return ChangeNotifierProvider(
+      create: (_) => GameController(initialLevel: initialLevel, levels: levels),
+      child: GameScreen(
+        themeId: ThemeCatalog.natureThemeId,
+        levelNumber: initialLevel.levelNumber,
+      ),
+    );
   }
 }

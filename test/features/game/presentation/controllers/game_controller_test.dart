@@ -17,8 +17,8 @@ void main() {
       final levels = createNatureLevels();
 
       expect(levels, hasLength(15));
-      expect(levels.first.rows, 4);
-      expect(levels.first.columns, 4);
+      expect(levels.first.rows, 5);
+      expect(levels.first.columns, 5);
       expect(levels.first.pairs, hasLength(3));
       expect(levels.last.rows, 14);
       expect(levels.last.columns, 8);
@@ -33,6 +33,22 @@ void main() {
 
     test('all known solutions validate', () {
       expect(NatureLevels.validateAll(), isEmpty);
+    });
+
+    test('known solutions use the whole grid and spread endpoints', () {
+      for (final generatedLevel in createGeneratedNatureLevels()) {
+        final level = generatedLevel.level;
+        final usedCells = <BoardPosition>{
+          for (final path in generatedLevel.solutionPaths.values) ...path.cells,
+        };
+        final straightEndpointPairs = level.pairs.where((pair) {
+          return pair.sourcePosition.row == pair.targetPosition.row ||
+              pair.sourcePosition.column == pair.targetPosition.column;
+        }).length;
+
+        expect(usedCells.length, level.rows * level.columns);
+        expect(straightEndpointPairs, lessThan(level.pairs.length ~/ 2));
+      }
     });
 
     test('known solution paths complete every level', () {

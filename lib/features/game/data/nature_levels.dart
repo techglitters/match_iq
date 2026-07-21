@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import '../domain/models/board_position.dart';
 import '../domain/models/game_level.dart';
@@ -17,20 +18,63 @@ class GeneratedNatureLevel {
   final Map<String, GamePath> solutionPaths;
 }
 
-List<GameLevel> createNatureLevels({math.Random? random}) {
-  return NatureLevels.all;
+class NatureBoardProfile {
+  const NatureBoardProfile({
+    required this.maxRows,
+    required this.maxColumns,
+    required this.maxPairs,
+  });
+
+  static const large = NatureBoardProfile(
+    maxRows: 14,
+    maxColumns: 8,
+    maxPairs: 10,
+  );
+
+  final int maxRows;
+  final int maxColumns;
+  final int maxPairs;
+
+  factory NatureBoardProfile.forSize(Size size) {
+    final shortestSide = math.min(size.width, size.height);
+    final longestSide = math.max(size.width, size.height);
+
+    if (shortestSide < 390 || longestSide < 720) {
+      return const NatureBoardProfile(maxRows: 10, maxColumns: 6, maxPairs: 7);
+    }
+
+    if (shortestSide < 600) {
+      return const NatureBoardProfile(maxRows: 12, maxColumns: 7, maxPairs: 9);
+    }
+
+    return large;
+  }
 }
 
-int get natureLevelCount => NatureLevels.all.length;
-
-GameLevel createNatureLevel({required int levelNumber, math.Random? random}) {
-  final index = levelNumber.clamp(1, NatureLevels.all.length).toInt() - 1;
-  return NatureLevels.all[index];
+List<GameLevel> createNatureLevels({
+  math.Random? random,
+  NatureBoardProfile profile = NatureBoardProfile.large,
+}) {
+  return NatureLevels.levelsFor(profile);
 }
 
-List<GeneratedNatureLevel> createGeneratedNatureLevels({math.Random? random}) {
+int get natureLevelCount => NatureLevels.totalLevelCount;
+
+GameLevel createNatureLevel({
+  required int levelNumber,
+  math.Random? random,
+  NatureBoardProfile profile = NatureBoardProfile.large,
+}) {
+  return NatureLevels.levelFor(levelNumber, profile: profile);
+}
+
+List<GeneratedNatureLevel> createGeneratedNatureLevels({
+  math.Random? random,
+  NatureBoardProfile profile = NatureBoardProfile.large,
+}) {
   return [
-    for (final level in NatureLevels.all) _generatedLevelFromGameLevel(level),
+    for (final level in NatureLevels.levelsFor(profile))
+      _generatedLevelFromGameLevel(level),
   ];
 }
 
@@ -38,21 +82,45 @@ GeneratedNatureLevel generateNatureLevel({
   required int levelNumber,
   required int pairCount,
   math.Random? random,
+  NatureBoardProfile profile = NatureBoardProfile.large,
 }) {
   return _generatedLevelFromGameLevel(
-    createNatureLevel(levelNumber: levelNumber),
+    createNatureLevel(levelNumber: levelNumber, profile: profile),
   );
 }
 
 class NatureLevels {
   const NatureLevels._();
 
-  static final List<GameLevel> all = List<GameLevel>.unmodifiable([
-    for (final spec in _levelSpecs) _buildLevel(spec),
-  ]);
+  static const totalLevelCount = 15;
 
-  static List<String> validateAll() {
-    return [for (final level in all) ...validateLevelSolutions(level)];
+  static final List<GameLevel> all = levelsFor(NatureBoardProfile.large);
+
+  static List<GameLevel> levelsFor(NatureBoardProfile profile) {
+    return List<GameLevel>.unmodifiable([
+      for (
+        var levelNumber = 1;
+        levelNumber <= totalLevelCount;
+        levelNumber += 1
+      )
+        _buildLevel(_LevelBlueprint.forLevel(levelNumber, profile)),
+    ]);
+  }
+
+  static GameLevel levelFor(
+    int levelNumber, {
+    NatureBoardProfile profile = NatureBoardProfile.large,
+  }) {
+    final clampedLevel = levelNumber.clamp(1, totalLevelCount).toInt();
+    return _buildLevel(_LevelBlueprint.forLevel(clampedLevel, profile));
+  }
+
+  static List<String> validateAll({
+    NatureBoardProfile profile = NatureBoardProfile.large,
+  }) {
+    return [
+      for (final level in levelsFor(profile)) ...validateLevelSolutions(level),
+    ];
   }
 }
 
@@ -142,6 +210,12 @@ List<String> validateLevelSolutions(GameLevel level) {
     }
   }
 
+  final occupiedRatio =
+      occupiedSolutionCells.length / (level.rows * level.columns);
+  if (occupiedRatio < 0.92) {
+    errors.add('${level.id}: known solutions should use most of the board');
+  }
+
   return errors;
 }
 
@@ -159,19 +233,22 @@ GeneratedNatureLevel _generatedLevelFromGameLevel(GameLevel level) {
   );
 }
 
-GameLevel _buildLevel(_NatureLevelSpec spec) {
-  final paths = _buildSolutionPaths(spec);
+GameLevel _buildLevel(_LevelBlueprint blueprint) {
+  final paths = _partitionTraversalIntoPaths(
+    traversal: _challengingTraversal(blueprint.rows, blueprint.columns),
+    pairCount: blueprint.pairCount,
+  );
   final relationships = [
-    for (var index = 0; index < spec.pairCount; index += 1)
-      NatureRelationships.all[(spec.levelNumber + index - 1) %
+    for (var index = 0; index < blueprint.pairCount; index += 1)
+      NatureRelationships.all[(blueprint.levelNumber + index - 1) %
           NatureRelationships.all.length],
   ];
   final placements = <LevelPairPlacement>[];
   final solutions = <LevelSolution>[];
 
-  for (var index = 0; index < spec.pairCount; index += 1) {
+  for (var index = 0; index < blueprint.pairCount; index += 1) {
     final relationship = relationships[index];
-    final path = paths[index];
+    final path = _orientedPath(paths[index], blueprint.levelNumber + index);
     placements.add(
       LevelPairPlacement(
         relationship: relationship,
@@ -188,45 +265,212 @@ GameLevel _buildLevel(_NatureLevelSpec spec) {
   }
 
   return GameLevel(
-    id: 'nature_${spec.levelNumber}',
-    name: 'Nature ${spec.levelNumber}',
-    levelNumber: spec.levelNumber,
-    rows: spec.rows,
-    columns: spec.columns,
+    id: 'nature_${blueprint.levelNumber}',
+    name: 'Nature ${blueprint.levelNumber}',
+    levelNumber: blueprint.levelNumber,
+    rows: blueprint.rows,
+    columns: blueprint.columns,
     pairs: List<LevelPairPlacement>.unmodifiable(placements),
-    threeStarMoveTarget: spec.pairCount,
-    twoStarMoveTarget: spec.pairCount + 2,
+    threeStarMoveTarget: blueprint.pairCount,
+    twoStarMoveTarget: blueprint.pairCount + 2,
     solutions: List<LevelSolution>.unmodifiable(solutions),
   );
 }
 
-List<List<BoardPosition>> _buildSolutionPaths(_NatureLevelSpec spec) {
-  final traversal = _snakeTraversal(spec.rows, spec.columns);
+List<BoardPosition> _orientedPath(List<BoardPosition> path, int seed) {
+  if (seed.isEven) {
+    return List<BoardPosition>.unmodifiable(path.reversed);
+  }
+  return path;
+}
+
+List<List<BoardPosition>> _partitionTraversalIntoPaths({
+  required List<BoardPosition> traversal,
+  required int pairCount,
+}) {
+  final plannedLengths = _planPathLengths(
+    traversal: traversal,
+    pairCount: pairCount,
+  );
   final paths = <List<BoardPosition>>[];
   var cursor = 0;
 
-  for (final length in spec.pathLengths) {
+  for (final length in plannedLengths) {
     paths.add(
       List<BoardPosition>.unmodifiable(
         traversal.sublist(cursor, cursor + length),
       ),
     );
-    cursor += length + 1;
+    cursor += length;
   }
 
   return paths;
 }
 
-List<BoardPosition> _snakeTraversal(int rows, int columns) {
+List<int> _planPathLengths({
+  required List<BoardPosition> traversal,
+  required int pairCount,
+}) {
+  final planned = <int>[];
+  if (_choosePathLengths(
+    traversal: traversal,
+    pairCount: pairCount,
+    cursor: 0,
+    planned: planned,
+  )) {
+    return planned;
+  }
+
+  final totalCells = traversal.length;
+  final baseLength = totalCells ~/ pairCount;
+  final remainder = totalCells % pairCount;
   return [
-    for (var row = 0; row < rows; row += 1)
-      if (row.isEven)
-        for (var column = 0; column < columns; column += 1)
-          BoardPosition(row: row, column: column)
-      else
-        for (var column = columns - 1; column >= 0; column -= 1)
-          BoardPosition(row: row, column: column),
+    for (var index = 0; index < pairCount; index += 1)
+      baseLength + (index < remainder ? 1 : 0),
   ];
+}
+
+bool _choosePathLengths({
+  required List<BoardPosition> traversal,
+  required int pairCount,
+  required int cursor,
+  required List<int> planned,
+}) {
+  final pathIndex = planned.length;
+  final remainingPaths = pairCount - pathIndex;
+  final remainingCells = traversal.length - cursor;
+  const minimumPathLength = 3;
+
+  if (remainingPaths == 1) {
+    if (_isInterestingSegment(traversal, cursor, remainingCells)) {
+      planned.add(remainingCells);
+      return true;
+    }
+    return false;
+  }
+
+  final targetLength = remainingCells ~/ remainingPaths;
+  final maxLength = remainingCells - minimumPathLength * (remainingPaths - 1);
+  final candidateLengths =
+      [
+        for (var length = minimumPathLength; length <= maxLength; length += 1)
+          length,
+      ]..sort((first, second) {
+        final firstDistance = (first - targetLength).abs();
+        final secondDistance = (second - targetLength).abs();
+        if (firstDistance != secondDistance) {
+          return firstDistance.compareTo(secondDistance);
+        }
+        return second.compareTo(first);
+      });
+
+  for (final length in candidateLengths) {
+    if (!_isInterestingSegment(traversal, cursor, length)) {
+      continue;
+    }
+
+    planned.add(length);
+    if (_choosePathLengths(
+      traversal: traversal,
+      pairCount: pairCount,
+      cursor: cursor + length,
+      planned: planned,
+    )) {
+      return true;
+    }
+    planned.removeLast();
+  }
+
+  return false;
+}
+
+bool _isInterestingSegment(
+  List<BoardPosition> traversal,
+  int startIndex,
+  int length,
+) {
+  if (length < 2 || startIndex + length > traversal.length) {
+    return false;
+  }
+
+  final start = traversal[startIndex];
+  final end = traversal[startIndex + length - 1];
+  return start.row != end.row && start.column != end.column;
+}
+
+List<BoardPosition> _challengingTraversal(int rows, int columns) {
+  final traversal = _spiralTraversal(rows, columns);
+  if (rows < 7 && columns < 7) {
+    return traversal;
+  }
+
+  final transformed = <BoardPosition>[];
+  final seen = <BoardPosition>{};
+
+  for (final position in traversal) {
+    final shifted = position.row.isOdd
+        ? BoardPosition(
+            row: position.row,
+            column: columns - 1 - position.column,
+          )
+        : position;
+
+    if (seen.add(shifted)) {
+      transformed.add(shifted);
+    }
+  }
+
+  if (transformed.length == rows * columns &&
+      _isContinuousTraversal(transformed)) {
+    return List<BoardPosition>.unmodifiable(transformed);
+  }
+
+  return traversal;
+}
+
+List<BoardPosition> _spiralTraversal(int rows, int columns) {
+  final traversal = <BoardPosition>[];
+  var top = 0;
+  var bottom = rows - 1;
+  var left = 0;
+  var right = columns - 1;
+
+  while (top <= bottom && left <= right) {
+    for (var column = left; column <= right; column += 1) {
+      traversal.add(BoardPosition(row: top, column: column));
+    }
+    top += 1;
+
+    for (var row = top; row <= bottom; row += 1) {
+      traversal.add(BoardPosition(row: row, column: right));
+    }
+    right -= 1;
+
+    if (top <= bottom) {
+      for (var column = right; column >= left; column -= 1) {
+        traversal.add(BoardPosition(row: bottom, column: column));
+      }
+      bottom -= 1;
+    }
+
+    if (left <= right) {
+      for (var row = bottom; row >= top; row -= 1) {
+        traversal.add(BoardPosition(row: row, column: left));
+      }
+      left += 1;
+    }
+  }
+
+  return List<BoardPosition>.unmodifiable(traversal);
+}
+
+bool _isContinuousTraversal(List<BoardPosition> traversal) {
+  for (var index = 1; index < traversal.length; index += 1) {
+    if (!_areAdjacent(traversal[index - 1], traversal[index])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool _isInside(BoardPosition position, GameLevel level) {
@@ -242,126 +486,53 @@ bool _areAdjacent(BoardPosition first, BoardPosition second) {
       1;
 }
 
-class _NatureLevelSpec {
-  const _NatureLevelSpec({
+class _LevelBlueprint {
+  const _LevelBlueprint({
     required this.levelNumber,
     required this.rows,
     required this.columns,
     required this.pairCount,
-    required this.pathLengths,
   });
 
   final int levelNumber;
   final int rows;
   final int columns;
   final int pairCount;
-  final List<int> pathLengths;
-}
 
-const _levelSpecs = [
-  _NatureLevelSpec(
-    levelNumber: 1,
-    rows: 4,
-    columns: 4,
-    pairCount: 3,
-    pathLengths: [3, 3, 3],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 2,
-    rows: 5,
-    columns: 4,
-    pairCount: 3,
-    pathLengths: [4, 3, 4],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 3,
-    rows: 5,
-    columns: 5,
-    pairCount: 4,
-    pathLengths: [4, 4, 3, 4],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 4,
-    rows: 6,
-    columns: 5,
-    pairCount: 4,
-    pathLengths: [5, 4, 5, 4],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 5,
-    rows: 6,
-    columns: 6,
-    pairCount: 5,
-    pathLengths: [4, 5, 4, 5, 4],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 6,
-    rows: 7,
-    columns: 6,
-    pairCount: 5,
-    pathLengths: [5, 5, 5, 4, 5],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 7,
-    rows: 8,
-    columns: 6,
-    pairCount: 6,
-    pathLengths: [5, 5, 4, 5, 5, 4],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 8,
-    rows: 9,
-    columns: 6,
-    pairCount: 6,
-    pathLengths: [6, 5, 5, 5, 6, 5],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 9,
-    rows: 10,
-    columns: 6,
-    pairCount: 7,
-    pathLengths: [5, 6, 5, 5, 6, 5, 5],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 10,
-    rows: 10,
-    columns: 7,
-    pairCount: 7,
-    pathLengths: [6, 6, 5, 6, 5, 6, 5],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 11,
-    rows: 11,
-    columns: 7,
-    pairCount: 8,
-    pathLengths: [6, 5, 6, 5, 6, 5, 6, 5],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 12,
-    rows: 12,
-    columns: 7,
-    pairCount: 8,
-    pathLengths: [7, 6, 6, 5, 7, 6, 6, 5],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 13,
-    rows: 12,
-    columns: 8,
-    pairCount: 9,
-    pathLengths: [6, 6, 7, 6, 6, 7, 6, 6, 7],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 14,
-    rows: 13,
-    columns: 8,
-    pairCount: 9,
-    pathLengths: [7, 7, 6, 7, 7, 6, 7, 7, 6],
-  ),
-  _NatureLevelSpec(
-    levelNumber: 15,
-    rows: 14,
-    columns: 8,
-    pairCount: 10,
-    pathLengths: [7, 7, 7, 6, 7, 7, 7, 6, 7, 7],
-  ),
-];
+  factory _LevelBlueprint.forLevel(
+    int levelNumber,
+    NatureBoardProfile profile,
+  ) {
+    final progress = (levelNumber - 1) / (NatureLevels.totalLevelCount - 1);
+    final rows = _scaledValue(
+      start: 5,
+      end: profile.maxRows,
+      progress: progress,
+    );
+    final columns = _scaledValue(
+      start: 5,
+      end: profile.maxColumns,
+      progress: progress,
+    );
+    final pairCount = _scaledValue(
+      start: 3,
+      end: profile.maxPairs,
+      progress: progress,
+    ).clamp(3, NatureRelationships.all.length);
+
+    return _LevelBlueprint(
+      levelNumber: levelNumber,
+      rows: rows,
+      columns: columns,
+      pairCount: math.min(pairCount, rows * columns ~/ 6),
+    );
+  }
+
+  static int _scaledValue({
+    required int start,
+    required int end,
+    required double progress,
+  }) {
+    return (start + (end - start) * progress).round().clamp(start, end);
+  }
+}
