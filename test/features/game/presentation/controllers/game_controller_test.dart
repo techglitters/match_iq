@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:match_iq/core/constants/game_constants.dart';
 import 'package:match_iq/core/persistence/memory_progress_store.dart';
@@ -32,6 +34,10 @@ void main() {
       for (final relationship in NatureRelationships.all) {
         expect(relationship.category, RelationshipCategory.nature);
       }
+    });
+
+    test('uses visually distinct relationship colors', () {
+      _expectDistinctRelationshipColors(NatureRelationships.all);
     });
 
     test('all known solutions validate', () {
@@ -96,13 +102,8 @@ void main() {
       }
     });
 
-    test('uses varied relationship colors', () {
-      final colors = {
-        for (final relationship in AnimalRelationships.all)
-          GameConstants.colorForRelationship(relationship.id),
-      };
-
-      expect(colors.length, greaterThanOrEqualTo(8));
+    test('uses visually distinct relationship colors', () {
+      _expectDistinctRelationshipColors(AnimalRelationships.all);
     });
 
     test('all known solutions validate', () {
@@ -446,4 +447,43 @@ BoardPosition _firstNonEndpoint(GameController controller) {
     }
   }
   throw StateError('Expected a non-endpoint cell.');
+}
+
+void _expectDistinctRelationshipColors(
+  List<LearningRelationship> relationships,
+) {
+  final colorValues = [
+    for (final relationship in relationships)
+      GameConstants.colorForRelationship(relationship.id).toARGB32(),
+  ];
+
+  expect(colorValues.toSet(), hasLength(colorValues.length));
+
+  for (var first = 0; first < relationships.length; first += 1) {
+    for (var second = first + 1; second < relationships.length; second += 1) {
+      expect(
+        _rgbDistance(colorValues[first], colorValues[second]),
+        greaterThanOrEqualTo(80),
+        reason:
+            '${relationships[first].id} and ${relationships[second].id} need '
+            'more visual separation.',
+      );
+    }
+  }
+}
+
+double _rgbDistance(int first, int second) {
+  final firstRed = (first >> 16) & 0xff;
+  final firstGreen = (first >> 8) & 0xff;
+  final firstBlue = first & 0xff;
+  final secondRed = (second >> 16) & 0xff;
+  final secondGreen = (second >> 8) & 0xff;
+  final secondBlue = second & 0xff;
+
+  final redDelta = firstRed - secondRed;
+  final greenDelta = firstGreen - secondGreen;
+  final blueDelta = firstBlue - secondBlue;
+  return math.sqrt(
+    redDelta * redDelta + greenDelta * greenDelta + blueDelta * blueDelta,
+  );
 }
