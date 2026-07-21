@@ -24,6 +24,19 @@ List<GameLevel> createNatureLevels({math.Random? random}) {
   );
 }
 
+int get natureLevelCount =>
+    _maxSupportedPairCount() - GameConstants.startingPairsPerLevel + 1;
+
+GameLevel createNatureLevel({required int levelNumber, math.Random? random}) {
+  final clampedLevelNumber = levelNumber.clamp(1, natureLevelCount).toInt();
+
+  return generateNatureLevel(
+    levelNumber: clampedLevelNumber,
+    pairCount: _pairCountForLevel(clampedLevelNumber),
+    random: random,
+  ).level;
+}
+
 List<GeneratedNatureLevel> createGeneratedNatureLevels({math.Random? random}) {
   final levelRandom = random ?? math.Random();
   final maxPairCount = _maxSupportedPairCount();
@@ -35,7 +48,7 @@ List<GeneratedNatureLevel> createGeneratedNatureLevels({math.Random? random}) {
       pairCount += 1
     )
       generateNatureLevel(
-        levelNumber: pairCount - GameConstants.startingPairsPerLevel + 1,
+        levelNumber: _levelNumberForPairCount(pairCount),
         pairCount: pairCount,
         random: levelRandom,
       ),
@@ -226,6 +239,8 @@ bool _meetsTargetDifficulty(
   ];
 
   return _usedCellCount(pathSegments) >= difficulty.usedCellGoal &&
+      _totalEndpointDistance(pathSegments) >=
+          difficulty.minimumTotalEndpointDistance &&
       _totalTurnCount(pathSegments) >= difficulty.preferredTotalTurns &&
       shortestPathLengths.every(
         (length) => length >= difficulty.minimumShortestPathCells,
@@ -239,6 +254,7 @@ double _difficultyScore(
   final endpointPositions = _endpointPositionsFor(pathSegments);
   final usedCells = _usedCellCount(pathSegments);
   final totalTurns = _totalTurnCount(pathSegments);
+  final totalEndpointDistance = _totalEndpointDistance(pathSegments);
   final shortestPathPressure = pathSegments.fold<int>(0, (total, path) {
     final shortestPathCells = _shortestAvailablePathCellCount(
       path.first,
@@ -258,6 +274,7 @@ double _difficultyScore(
   });
 
   return usedCells * 3.0 +
+      totalEndpointDistance * 5.5 +
       totalTurns * 4.5 +
       shortestPathPressure * 2.0 +
       _overlappingRouteBoxScore(pathSegments) * 2.0 -
@@ -270,6 +287,13 @@ int _usedCellCount(List<List<BoardPosition>> pathSegments) {
 
 int _totalTurnCount(List<List<BoardPosition>> pathSegments) {
   return pathSegments.fold<int>(0, (total, path) => total + _turnCount(path));
+}
+
+int _totalEndpointDistance(List<List<BoardPosition>> pathSegments) {
+  return pathSegments.fold<int>(
+    0,
+    (total, path) => total + _distance(path.first, path.last),
+  );
 }
 
 Set<BoardPosition> _endpointPositionsFor(List<List<BoardPosition>> paths) {
@@ -360,58 +384,230 @@ List<int> _randomGapLengths({
 }
 
 List<List<BoardPosition>> _fallbackPathSegments(int pairCount) {
-  const pathA = [
-    BoardPosition(row: 0, column: 0),
-    BoardPosition(row: 1, column: 0),
-    BoardPosition(row: 1, column: 1),
-  ];
-  const pathB = [
-    BoardPosition(row: 0, column: 1),
-    BoardPosition(row: 0, column: 2),
-    BoardPosition(row: 1, column: 2),
-  ];
-  const pathC = [
-    BoardPosition(row: 0, column: 3),
-    BoardPosition(row: 0, column: 4),
-    BoardPosition(row: 1, column: 4),
-  ];
-  const pathD = [
-    BoardPosition(row: 2, column: 0),
-    BoardPosition(row: 2, column: 1),
-    BoardPosition(row: 3, column: 1),
-  ];
-  const pathE = [
-    BoardPosition(row: 2, column: 2),
-    BoardPosition(row: 3, column: 2),
-    BoardPosition(row: 3, column: 3),
-  ];
-  const pathF = [
-    BoardPosition(row: 1, column: 3),
-    BoardPosition(row: 2, column: 3),
-    BoardPosition(row: 2, column: 4),
-  ];
-  const pathG = [
-    BoardPosition(row: 3, column: 0),
-    BoardPosition(row: 4, column: 0),
-    BoardPosition(row: 4, column: 1),
-  ];
-  const pathH = [
-    BoardPosition(row: 4, column: 2),
-    BoardPosition(row: 4, column: 3),
-    BoardPosition(row: 4, column: 4),
-    BoardPosition(row: 3, column: 4),
-  ];
-
-  final pathAB = [...pathA, ...pathB];
-  final pathDG = [...pathD, ...pathG];
-  final pathFH = [...pathF, ...pathH.reversed];
-  final pathABE = [...pathAB, ...pathE];
-  final pathCFH = [...pathC, ...pathFH];
-
   final paths = switch (pairCount) {
-    <= 3 => [pathABE, pathCFH, pathDG],
-    7 => [pathA, pathB, pathC, pathD, pathE, pathFH, pathG],
-    _ => [pathA, pathB, pathC, pathD, pathE, pathF, pathG, pathH],
+    <= 3 => const [
+      [
+        BoardPosition(row: 0, column: 0),
+        BoardPosition(row: 1, column: 0),
+        BoardPosition(row: 1, column: 1),
+        BoardPosition(row: 2, column: 1),
+        BoardPosition(row: 2, column: 2),
+        BoardPosition(row: 3, column: 2),
+        BoardPosition(row: 3, column: 3),
+        BoardPosition(row: 4, column: 3),
+      ],
+      [
+        BoardPosition(row: 0, column: 1),
+        BoardPosition(row: 0, column: 2),
+        BoardPosition(row: 1, column: 2),
+        BoardPosition(row: 1, column: 3),
+        BoardPosition(row: 0, column: 3),
+        BoardPosition(row: 0, column: 4),
+        BoardPosition(row: 1, column: 4),
+        BoardPosition(row: 2, column: 4),
+      ],
+      [
+        BoardPosition(row: 2, column: 0),
+        BoardPosition(row: 3, column: 0),
+        BoardPosition(row: 3, column: 1),
+        BoardPosition(row: 4, column: 1),
+        BoardPosition(row: 4, column: 2),
+      ],
+    ],
+    4 => const [
+      [
+        BoardPosition(row: 0, column: 0),
+        BoardPosition(row: 1, column: 0),
+        BoardPosition(row: 1, column: 1),
+        BoardPosition(row: 2, column: 1),
+        BoardPosition(row: 2, column: 2),
+        BoardPosition(row: 3, column: 2),
+        BoardPosition(row: 3, column: 3),
+      ],
+      [
+        BoardPosition(row: 0, column: 1),
+        BoardPosition(row: 0, column: 2),
+        BoardPosition(row: 1, column: 2),
+        BoardPosition(row: 1, column: 3),
+        BoardPosition(row: 0, column: 3),
+        BoardPosition(row: 0, column: 4),
+        BoardPosition(row: 1, column: 4),
+      ],
+      [
+        BoardPosition(row: 2, column: 0),
+        BoardPosition(row: 3, column: 0),
+        BoardPosition(row: 3, column: 1),
+        BoardPosition(row: 4, column: 1),
+        BoardPosition(row: 4, column: 2),
+        BoardPosition(row: 4, column: 3),
+      ],
+      [
+        BoardPosition(row: 2, column: 3),
+        BoardPosition(row: 2, column: 4),
+        BoardPosition(row: 3, column: 4),
+        BoardPosition(row: 4, column: 4),
+      ],
+    ],
+    5 => const [
+      [
+        BoardPosition(row: 0, column: 0),
+        BoardPosition(row: 1, column: 0),
+        BoardPosition(row: 1, column: 1),
+        BoardPosition(row: 2, column: 1),
+        BoardPosition(row: 2, column: 2),
+        BoardPosition(row: 3, column: 2),
+        BoardPosition(row: 3, column: 3),
+      ],
+      [
+        BoardPosition(row: 0, column: 1),
+        BoardPosition(row: 0, column: 2),
+        BoardPosition(row: 1, column: 2),
+        BoardPosition(row: 1, column: 3),
+        BoardPosition(row: 2, column: 3),
+      ],
+      [
+        BoardPosition(row: 0, column: 3),
+        BoardPosition(row: 0, column: 4),
+        BoardPosition(row: 1, column: 4),
+        BoardPosition(row: 2, column: 4),
+      ],
+      [
+        BoardPosition(row: 2, column: 0),
+        BoardPosition(row: 3, column: 0),
+        BoardPosition(row: 4, column: 0),
+        BoardPosition(row: 4, column: 1),
+        BoardPosition(row: 3, column: 1),
+      ],
+      [
+        BoardPosition(row: 3, column: 4),
+        BoardPosition(row: 4, column: 4),
+        BoardPosition(row: 4, column: 3),
+        BoardPosition(row: 4, column: 2),
+      ],
+    ],
+    6 => const [
+      [
+        BoardPosition(row: 0, column: 0),
+        BoardPosition(row: 1, column: 0),
+        BoardPosition(row: 1, column: 1),
+        BoardPosition(row: 2, column: 1),
+        BoardPosition(row: 2, column: 2),
+      ],
+      [
+        BoardPosition(row: 0, column: 1),
+        BoardPosition(row: 0, column: 2),
+        BoardPosition(row: 1, column: 2),
+        BoardPosition(row: 1, column: 3),
+      ],
+      [
+        BoardPosition(row: 0, column: 3),
+        BoardPosition(row: 0, column: 4),
+        BoardPosition(row: 1, column: 4),
+        BoardPosition(row: 2, column: 4),
+      ],
+      [
+        BoardPosition(row: 2, column: 0),
+        BoardPosition(row: 3, column: 0),
+        BoardPosition(row: 4, column: 0),
+        BoardPosition(row: 4, column: 1),
+      ],
+      [
+        BoardPosition(row: 2, column: 3),
+        BoardPosition(row: 3, column: 3),
+        BoardPosition(row: 3, column: 4),
+        BoardPosition(row: 4, column: 4),
+      ],
+      [
+        BoardPosition(row: 3, column: 1),
+        BoardPosition(row: 3, column: 2),
+        BoardPosition(row: 4, column: 2),
+        BoardPosition(row: 4, column: 3),
+      ],
+    ],
+    7 => const [
+      [
+        BoardPosition(row: 0, column: 0),
+        BoardPosition(row: 1, column: 0),
+        BoardPosition(row: 1, column: 1),
+        BoardPosition(row: 2, column: 1),
+        BoardPosition(row: 2, column: 2),
+      ],
+      [
+        BoardPosition(row: 0, column: 1),
+        BoardPosition(row: 0, column: 2),
+        BoardPosition(row: 1, column: 2),
+        BoardPosition(row: 1, column: 3),
+      ],
+      [
+        BoardPosition(row: 0, column: 3),
+        BoardPosition(row: 0, column: 4),
+        BoardPosition(row: 1, column: 4),
+      ],
+      [
+        BoardPosition(row: 2, column: 0),
+        BoardPosition(row: 3, column: 0),
+        BoardPosition(row: 4, column: 0),
+        BoardPosition(row: 4, column: 1),
+      ],
+      [
+        BoardPosition(row: 2, column: 3),
+        BoardPosition(row: 2, column: 4),
+        BoardPosition(row: 3, column: 4),
+      ],
+      [
+        BoardPosition(row: 3, column: 1),
+        BoardPosition(row: 3, column: 2),
+        BoardPosition(row: 4, column: 2),
+      ],
+      [
+        BoardPosition(row: 3, column: 3),
+        BoardPosition(row: 4, column: 3),
+        BoardPosition(row: 4, column: 4),
+      ],
+    ],
+    _ => const [
+      [
+        BoardPosition(row: 0, column: 0),
+        BoardPosition(row: 1, column: 0),
+        BoardPosition(row: 1, column: 1),
+      ],
+      [
+        BoardPosition(row: 0, column: 1),
+        BoardPosition(row: 0, column: 2),
+        BoardPosition(row: 1, column: 2),
+        BoardPosition(row: 2, column: 2),
+      ],
+      [
+        BoardPosition(row: 0, column: 3),
+        BoardPosition(row: 0, column: 4),
+        BoardPosition(row: 1, column: 4),
+      ],
+      [
+        BoardPosition(row: 1, column: 3),
+        BoardPosition(row: 2, column: 3),
+        BoardPosition(row: 2, column: 4),
+      ],
+      [
+        BoardPosition(row: 2, column: 0),
+        BoardPosition(row: 2, column: 1),
+        BoardPosition(row: 3, column: 1),
+      ],
+      [
+        BoardPosition(row: 3, column: 0),
+        BoardPosition(row: 4, column: 0),
+        BoardPosition(row: 4, column: 1),
+      ],
+      [
+        BoardPosition(row: 3, column: 2),
+        BoardPosition(row: 4, column: 2),
+        BoardPosition(row: 4, column: 3),
+      ],
+      [
+        BoardPosition(row: 3, column: 3),
+        BoardPosition(row: 3, column: 4),
+        BoardPosition(row: 4, column: 4),
+      ],
+    ],
   };
 
   return List<List<BoardPosition>>.unmodifiable(paths.take(pairCount));
@@ -617,6 +813,14 @@ int _maxSupportedPairCount() {
   );
 }
 
+int _levelNumberForPairCount(int pairCount) {
+  return pairCount - GameConstants.startingPairsPerLevel + 1;
+}
+
+int _pairCountForLevel(int levelNumber) {
+  return GameConstants.startingPairsPerLevel + levelNumber - 1;
+}
+
 int get _totalCellCount => GameConstants.boardRows * GameConstants.boardColumns;
 
 class _DifficultyProfile {
@@ -624,6 +828,7 @@ class _DifficultyProfile {
     required this.usedCellGoal,
     required this.minimumPathCells,
     required this.minimumEndpointDistance,
+    required this.minimumTotalEndpointDistance,
     required this.minimumTurnsPerPath,
     required this.preferredTotalTurns,
     required this.minimumShortestPathCells,
@@ -638,17 +843,27 @@ class _DifficultyProfile {
   }) {
     final clampedLevel = levelNumber.clamp(1, 6).toInt();
     final usedCellGoal = switch (pairCount) {
-      <= 3 => 16 + (clampedLevel > 1 ? 1 : 0),
+      <= 3 => 17 + (clampedLevel > 1 ? 1 : 0),
       4 => 20,
-      5 => 22,
-      6 => 24,
+      5 => 23,
+      6 => _totalCellCount,
       _ => _totalCellCount,
     };
-    final minimumPathCells = pairCount <= 6
+    final minimumPathCells = pairCount <= 3
+        ? 5
+        : pairCount <= 6
         ? 4
         : GameConstants.minimumCellsPerPath;
-    final minimumEndpointDistance = pairCount <= 6 ? 3 : 2;
-    final minimumShortestPathCells = pairCount <= 6 ? 4 : 3;
+    final minimumEndpointDistance = pairCount <= 4 ? 3 : 2;
+    final minimumTotalEndpointDistance = switch (pairCount) {
+      <= 3 => 10,
+      4 => 13,
+      5 => 14,
+      6 => 15,
+      7 => 16,
+      _ => 17,
+    };
+    final minimumShortestPathCells = pairCount <= 4 ? 4 : 3;
     final preferredTurnsPerPath = pairCount <= 4 ? 2 : 1;
     final preferredTotalTurns = math.max(
       pairCount,
@@ -659,18 +874,20 @@ class _DifficultyProfile {
       usedCellGoal: usedCellGoal,
       minimumPathCells: minimumPathCells,
       minimumEndpointDistance: minimumEndpointDistance,
+      minimumTotalEndpointDistance: minimumTotalEndpointDistance,
       minimumTurnsPerPath: 1,
       preferredTotalTurns: preferredTotalTurns,
       minimumShortestPathCells: minimumShortestPathCells,
       shortestPathScoreCap: 8 + clampedLevel,
-      acceptableScore: 90 + clampedLevel * 18 + pairCount * 12,
-      searchAttempts: 36 + clampedLevel * 6,
+      acceptableScore: 120 + clampedLevel * 20 + pairCount * 16,
+      searchAttempts: 48 + clampedLevel * 8,
     );
   }
 
   final int usedCellGoal;
   final int minimumPathCells;
   final int minimumEndpointDistance;
+  final int minimumTotalEndpointDistance;
   final int minimumTurnsPerPath;
   final int preferredTotalTurns;
   final int minimumShortestPathCells;

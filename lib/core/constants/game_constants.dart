@@ -8,6 +8,7 @@ class GameConstants {
   static const int startingPairsPerLevel = 3;
   static const int minimumLineSegmentsPerPath = 2;
   static int get minimumCellsPerPath => minimumLineSegmentsPerPath + 1;
+  static const int minimumCellsToCompletePath = 2;
   static int get maxPairsPerLevel =>
       boardRows * boardColumns ~/ minimumCellsPerPath;
   static const Duration splashDuration = Duration(milliseconds: 1200);

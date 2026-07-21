@@ -28,10 +28,15 @@ class AppRoutes {
   }
 
   static Widget _createGameScreen() {
-    final levels = createNatureLevels();
+    final initialLevel = createNatureLevel(levelNumber: 1);
 
     return ChangeNotifierProvider(
-      create: (_) => GameController(initialLevel: levels.first, levels: levels),
+      create: (_) => GameController(
+        initialLevel: initialLevel,
+        maxLevelCount: natureLevelCount,
+        levelBuilder: (levelNumber) =>
+            createNatureLevel(levelNumber: levelNumber),
+      ),
       child: const GameScreen(),
     );
   }

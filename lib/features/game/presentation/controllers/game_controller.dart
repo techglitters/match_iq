@@ -6,15 +6,30 @@ import '../../domain/models/game_level.dart';
 import '../../domain/models/game_path.dart';
 import '../../domain/models/level_pair_placement.dart';
 
+typedef GameLevelBuilder = GameLevel Function(int levelNumber);
+
 class GameController extends ChangeNotifier {
-  GameController({required GameLevel initialLevel, List<GameLevel>? levels})
-    : levels = List<GameLevel>.unmodifiable(levels ?? [initialLevel]) {
-    _validateLevels(this.levels);
+  GameController({
+    required GameLevel initialLevel,
+    List<GameLevel>? levels,
+    GameLevelBuilder? levelBuilder,
+    int? maxLevelCount,
+  }) : _levels = List<GameLevel>.of(levels ?? [initialLevel]),
+       _levelBuilder = levelBuilder,
+       _maxLevelCount = _resolveMaxLevelCount(levels, maxLevelCount) {
+    _validateLevels(_levels);
     currentLevelIndex = _levelIndexFor(initialLevel);
-    _loadLevel(this.levels[currentLevelIndex], shouldNotify: false);
+    if (currentLevelIndex < 0) {
+      _validateLevel(initialLevel);
+      _levels.insert(0, initialLevel);
+      currentLevelIndex = 0;
+    }
+    _loadLevel(_levels[currentLevelIndex], shouldNotify: false);
   }
 
-  final List<GameLevel> levels;
+  final List<GameLevel> _levels;
+  final GameLevelBuilder? _levelBuilder;
+  final int _maxLevelCount;
   int currentLevelIndex = 0;
   late GameLevel level;
   Map<String, GamePath> completedPaths = <String, GamePath>{};
@@ -34,7 +49,9 @@ class GameController extends ChangeNotifier {
 
   int get visibleLevelNumber => currentLevelIndex + 1;
 
-  bool get hasNextLevel => currentLevelIndex < levels.length - 1;
+  bool get hasNextLevel => currentLevelIndex < _maxLevelCount - 1;
+
+  List<GameLevel> get levels => List<GameLevel>.unmodifiable(_levels);
 
   bool get hasProgress {
     return completedPaths.isNotEmpty || activePath.isNotEmpty || moves > 0;
@@ -54,7 +71,7 @@ class GameController extends ChangeNotifier {
   }
 
   void loadLevel(GameLevel newLevel) {
-    currentLevelIndex = _levelIndexFor(newLevel);
+    currentLevelIndex = _cacheLevel(newLevel);
     _loadLevel(newLevel, shouldNotify: true);
   }
 
@@ -64,7 +81,7 @@ class GameController extends ChangeNotifier {
     }
 
     currentLevelIndex += 1;
-    _loadLevel(levels[currentLevelIndex], shouldNotify: true);
+    _loadLevel(_levelAt(currentLevelIndex), shouldNotify: true);
     return true;
   }
 
@@ -155,7 +172,7 @@ class GameController extends ChangeNotifier {
     final relationshipId = activeRelationshipId;
     final isValidPath =
         relationshipId != null &&
-        activePath.length >= GameConstants.minimumCellsPerPath &&
+        activePath.length >= GameConstants.minimumCellsToCompletePath &&
         isCorrectTarget(activePath.last);
 
     if (isValidPath) {
@@ -334,13 +351,44 @@ class GameController extends ChangeNotifier {
     }
   }
 
+  GameLevel _levelAt(int index) {
+    if (index < _levels.length) {
+      return _levels[index];
+    }
+
+    final builder = _levelBuilder;
+    if (builder == null) {
+      throw StateError('No level builder is available for level ${index + 1}.');
+    }
+
+    while (_levels.length <= index) {
+      final nextLevelNumber = _levels.length + 1;
+      final nextLevel = builder(nextLevelNumber);
+      _validateLevel(nextLevel);
+      _levels.add(nextLevel);
+    }
+
+    return _levels[index];
+  }
+
   int _levelIndexFor(GameLevel newLevel) {
-    for (var index = 0; index < levels.length; index += 1) {
-      if (levels[index].id == newLevel.id) {
+    for (var index = 0; index < _levels.length; index += 1) {
+      if (_levels[index].id == newLevel.id) {
         return index;
       }
     }
-    return 0;
+    return -1;
+  }
+
+  int _cacheLevel(GameLevel newLevel) {
+    final existingIndex = _levelIndexFor(newLevel);
+    if (existingIndex >= 0) {
+      return existingIndex;
+    }
+
+    _validateLevel(newLevel);
+    _levels.add(newLevel);
+    return _levels.length - 1;
   }
 
   void _resetState() {
@@ -365,4 +413,12 @@ class GameController extends ChangeNotifier {
         position.column >= 0 &&
         position.column < level.columns;
   }
+}
+
+int _resolveMaxLevelCount(List<GameLevel>? levels, int? maxLevelCount) {
+  if (maxLevelCount != null) {
+    return maxLevelCount;
+  }
+
+  return levels?.length ?? 1;
 }
