@@ -5,6 +5,7 @@ import '../../../themes/domain/level_completion_result.dart';
 class LevelCompleteDialog extends StatelessWidget {
   const LevelCompleteDialog({
     required this.result,
+    required this.themeName,
     required this.onPlayAgain,
     required this.onLevelMap,
     required this.onHome,
@@ -13,6 +14,7 @@ class LevelCompleteDialog extends StatelessWidget {
   });
 
   final LevelCompletionResult result;
+  final String themeName;
   final VoidCallback onPlayAgain;
   final VoidCallback onLevelMap;
   final VoidCallback onHome;
@@ -28,7 +30,9 @@ class LevelCompleteDialog extends StatelessWidget {
         color: colorScheme.primary,
         size: 42,
       ),
-      title: Text(result.isThemeComplete ? 'Nature Complete!' : 'Wonderful!'),
+      title: Text(
+        result.isThemeComplete ? '$themeName Complete!' : 'Wonderful!',
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

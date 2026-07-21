@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/app_routes.dart';
+import '../../../themes/data/theme_catalog.dart';
 import '../../../themes/domain/level_completion_result.dart';
 import '../../../themes/presentation/controllers/app_progress_controller.dart';
 import '../controllers/game_controller.dart';
@@ -44,12 +45,16 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme =
+        context.watch<AppProgressController>().themeById(widget.themeId) ??
+        ThemeCatalog.natureWorld;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Consumer<GameController>(
           builder: (context, controller, _) {
-            _showCompleteDialogIfNeeded(controller);
+            _showCompleteDialogIfNeeded(controller, themeName: theme.name);
 
             return Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
@@ -59,7 +64,7 @@ class _GameScreenState extends State<GameScreen> {
                     controller: controller,
                     onBack: () => Navigator.of(
                       context,
-                    ).pushReplacementNamed(AppRoutes.natureLevels),
+                    ).pushReplacementNamed(AppRoutes.themeLevels(theme.id)),
                   ),
                   const SizedBox(height: 10),
                   Expanded(child: _BoardHost(controller: controller)),
@@ -83,7 +88,10 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  void _showCompleteDialogIfNeeded(GameController controller) {
+  void _showCompleteDialogIfNeeded(
+    GameController controller, {
+    required String themeName,
+  }) {
     if (!controller.isLevelComplete || _dialogShown || _savingCompletion) {
       return;
     }
@@ -107,6 +115,7 @@ class _GameScreenState extends State<GameScreen> {
         builder: (dialogContext) {
           return LevelCompleteDialog(
             result: result,
+            themeName: themeName,
             onPlayAgain: () {
               Navigator.of(dialogContext).pop();
               controller.restartLevel();
@@ -118,7 +127,10 @@ class _GameScreenState extends State<GameScreen> {
                 ? () {
                     Navigator.of(dialogContext).pop();
                     Navigator.of(context).pushReplacementNamed(
-                      AppRoutes.natureLevel(widget.levelNumber + 1),
+                      AppRoutes.themeLevel(
+                        widget.themeId,
+                        widget.levelNumber + 1,
+                      ),
                     );
                   }
                 : null,
@@ -126,7 +138,7 @@ class _GameScreenState extends State<GameScreen> {
               Navigator.of(dialogContext).pop();
               Navigator.of(
                 context,
-              ).pushReplacementNamed(AppRoutes.natureLevels);
+              ).pushReplacementNamed(AppRoutes.themeLevels(widget.themeId));
             },
             onHome: () {
               Navigator.of(dialogContext).pop();

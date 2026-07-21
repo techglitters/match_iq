@@ -130,6 +130,10 @@ class GameController extends ChangeNotifier {
       return true;
     }
 
+    if (activePath.length > 1 && isEndpoint(lastPosition)) {
+      return false;
+    }
+
     if (!canAddPosition(position)) {
       return false;
     }
@@ -137,6 +141,46 @@ class GameController extends ChangeNotifier {
     activePath = List<BoardPosition>.of(activePath)..add(position);
     notifyListeners();
     return true;
+  }
+
+  GamePath? cutCompletedPathAtAndExtend(BoardPosition position) {
+    if (!isDragging || activePath.isEmpty || isLevelComplete) {
+      return null;
+    }
+
+    final relationshipId = activeRelationshipId;
+    if (relationshipId == null ||
+        !_isPositionInsideBoard(position) ||
+        activePath.contains(position) ||
+        isEndpoint(position)) {
+      return null;
+    }
+
+    final lastPosition = activePath.last;
+    if (activePath.length > 1 && isEndpoint(lastPosition)) {
+      return null;
+    }
+
+    if (!arePositionsAdjacent(lastPosition, position)) {
+      return null;
+    }
+
+    final cutPath = _completedPathAt(
+      position,
+      excludingRelationshipId: relationshipId,
+    );
+    if (cutPath == null) {
+      return null;
+    }
+
+    completedPaths = Map<String, GamePath>.of(completedPaths)
+      ..remove(cutPath.relationshipId);
+    completedPathOrder = List<String>.of(completedPathOrder)
+      ..remove(cutPath.relationshipId);
+    activePath = List<BoardPosition>.of(activePath)..add(position);
+    isLevelComplete = false;
+    notifyListeners();
+    return cutPath;
   }
 
   GamePath? rejectWrongEndpoint(BoardPosition position) {
@@ -227,6 +271,22 @@ class GameController extends ChangeNotifier {
     return completedPaths.values.any((path) => path.cells.contains(position));
   }
 
+  GamePath? _completedPathAt(
+    BoardPosition position, {
+    required String excludingRelationshipId,
+  }) {
+    for (final path in completedPaths.values) {
+      if (path.relationshipId == excludingRelationshipId) {
+        continue;
+      }
+
+      if (path.cells.contains(position)) {
+        return path;
+      }
+    }
+    return null;
+  }
+
   bool canAddPosition(BoardPosition position) {
     if (activePath.isEmpty || !_isPositionInsideBoard(position)) {
       return false;
@@ -250,6 +310,10 @@ class GameController extends ChangeNotifier {
 
   bool canRejectWrongEndpoint(BoardPosition position) {
     if (!isDragging || activePath.isEmpty || isLevelComplete) {
+      return false;
+    }
+
+    if (activePath.length > 1 && isEndpoint(activePath.last)) {
       return false;
     }
 

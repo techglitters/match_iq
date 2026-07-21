@@ -22,7 +22,9 @@ class _GameBoardState extends State<GameBoard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _rollbackController;
   BoardPosition? _lastPanPosition;
+  Offset? _activeDragPosition;
   GamePath? _rollbackPath;
+  SplitRollbackPath? _splitRollbackPath;
   Color? _rollbackColor;
   BoardPosition? _invalidEndpointPosition;
 
@@ -91,11 +93,13 @@ class _GameBoardState extends State<GameBoard>
                     completedPaths: controller.completedPaths.values.toList(),
                     activePath: controller.activeGamePath,
                     rollbackPath: _rollbackPath,
+                    splitRollbackPath: _splitRollbackPath,
                     rollbackProgress: _rollbackController.value,
                     rollbackColor: _rollbackColor,
                     rollbackShimmerProgress: _rollbackColor == null
                         ? null
                         : _rollbackController.value,
+                    activeDragPosition: _activeDragPosition,
                     rows: level.rows,
                     columns: level.columns,
                     endpointPositions: endpointPositions,
@@ -172,25 +176,43 @@ class _GameBoardState extends State<GameBoard>
     }
 
     _lastPanPosition = position;
-    context.read<GameController>().startPath(position);
+    final didStart = context.read<GameController>().startPath(position);
+    setState(() {
+      _activeDragPosition = didStart
+          ? _clampOffset(localPosition, boardSize)
+          : null;
+    });
   }
 
   void _handlePanUpdate(Offset localPosition, Size boardSize, GameLevel level) {
-    final position = _positionFromOffset(localPosition, boardSize, level);
-    if (position == null || position == _lastPanPosition) {
-      return;
-    }
-
-    _lastPanPosition = position;
     final controller = context.read<GameController>();
-    final rejectedPath = controller.rejectWrongEndpoint(position);
-    if (rejectedPath != null) {
-      _lastPanPosition = null;
-      _triggerWrongEndpointFeedback(rejectedPath, position);
+    final position = _positionFromOffset(localPosition, boardSize, level);
+    if (position == null) {
+      _updateActiveDragPosition(controller, localPosition, boardSize);
       return;
     }
 
-    controller.extendPath(position);
+    if (position != _lastPanPosition) {
+      _lastPanPosition = position;
+      final rejectedPath = controller.rejectWrongEndpoint(position);
+      if (rejectedPath != null) {
+        _lastPanPosition = null;
+        setState(() {
+          _activeDragPosition = null;
+        });
+        _triggerWrongEndpointFeedback(rejectedPath, position);
+        return;
+      }
+
+      final cutPath = controller.cutCompletedPathAtAndExtend(position);
+      if (cutPath != null) {
+        _startSplitRollback(cutPath, position);
+      } else {
+        controller.extendPath(position);
+      }
+    }
+
+    _updateActiveDragPosition(controller, localPosition, boardSize);
   }
 
   void _handlePanEnd() {
@@ -198,6 +220,11 @@ class _GameBoardState extends State<GameBoard>
     final controller = context.read<GameController>();
     final pathBeforeFinish = controller.activeGamePath;
     final didComplete = controller.finishPath();
+    if (_activeDragPosition != null) {
+      setState(() {
+        _activeDragPosition = null;
+      });
+    }
 
     if (!didComplete &&
         pathBeforeFinish != null &&
@@ -211,6 +238,11 @@ class _GameBoardState extends State<GameBoard>
     final controller = context.read<GameController>();
     final pathBeforeCancel = controller.activeGamePath;
     controller.cancelActivePath();
+    if (_activeDragPosition != null) {
+      setState(() {
+        _activeDragPosition = null;
+      });
+    }
 
     if (pathBeforeCancel != null && pathBeforeCancel.cells.length > 1) {
       _startRollback(pathBeforeCancel);
@@ -228,6 +260,25 @@ class _GameBoardState extends State<GameBoard>
     );
   }
 
+  void _startSplitRollback(GamePath path, BoardPosition cutPosition) {
+    _rollbackController.stop();
+    _rollbackController.value = 1;
+    setState(() {
+      _rollbackPath = null;
+      _splitRollbackPath = SplitRollbackPath(
+        path: path,
+        cutPosition: cutPosition,
+      );
+      _rollbackColor = GameConstants.colorForRelationship(path.relationshipId);
+      _invalidEndpointPosition = null;
+    });
+    _rollbackController.animateBack(
+      0,
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   void _startRollback(
     GamePath path, {
     Color? color,
@@ -239,6 +290,7 @@ class _GameBoardState extends State<GameBoard>
     _rollbackController.value = 1;
     setState(() {
       _rollbackPath = path;
+      _splitRollbackPath = null;
       _rollbackColor = color;
       _invalidEndpointPosition = invalidEndpointPosition;
     });
@@ -246,7 +298,7 @@ class _GameBoardState extends State<GameBoard>
   }
 
   void _handleRollbackTick() {
-    if (_rollbackPath == null || !mounted) {
+    if ((_rollbackPath == null && _splitRollbackPath == null) || !mounted) {
       return;
     }
 
@@ -254,13 +306,14 @@ class _GameBoardState extends State<GameBoard>
   }
 
   void _clearRollbackPath() {
-    if (_rollbackPath == null) {
+    if (_rollbackPath == null && _splitRollbackPath == null) {
       return;
     }
 
     _rollbackController.stop();
     setState(() {
       _rollbackPath = null;
+      _splitRollbackPath = null;
       _rollbackColor = null;
       _invalidEndpointPosition = null;
       _rollbackController.value = 0;
@@ -268,19 +321,26 @@ class _GameBoardState extends State<GameBoard>
   }
 
   void _handleRollbackStatus(AnimationStatus status) {
-    if (status != AnimationStatus.dismissed || _rollbackPath == null) {
+    if (status != AnimationStatus.dismissed ||
+        (_rollbackPath == null && _splitRollbackPath == null)) {
       return;
     }
 
     if (!mounted) {
       _rollbackPath = null;
+      _splitRollbackPath = null;
       return;
     }
 
+    final shouldClearActiveDragPosition = _rollbackPath != null;
     setState(() {
       _rollbackPath = null;
+      _splitRollbackPath = null;
       _rollbackColor = null;
       _invalidEndpointPosition = null;
+      if (shouldClearActiveDragPosition) {
+        _activeDragPosition = null;
+      }
     });
   }
 
@@ -314,6 +374,42 @@ class _GameBoardState extends State<GameBoard>
     }
 
     return BoardPosition(row: row, column: column);
+  }
+
+  Offset _clampOffset(Offset offset, Size boardSize) {
+    return Offset(
+      offset.dx.clamp(0, boardSize.width).toDouble(),
+      offset.dy.clamp(0, boardSize.height).toDouble(),
+    );
+  }
+
+  void _updateActiveDragPosition(
+    GameController controller,
+    Offset localPosition,
+    Size boardSize,
+  ) {
+    if (!controller.isDragging || controller.activePath.isEmpty) {
+      if (_activeDragPosition != null) {
+        setState(() {
+          _activeDragPosition = null;
+        });
+      }
+      return;
+    }
+
+    final hasStoppedAtEndpoint =
+        controller.activePath.length > 1 &&
+        controller.isEndpoint(controller.activePath.last);
+    final nextPosition = hasStoppedAtEndpoint
+        ? null
+        : _clampOffset(localPosition, boardSize);
+    if (_activeDragPosition == nextPosition) {
+      return;
+    }
+
+    setState(() {
+      _activeDragPosition = nextPosition;
+    });
   }
 }
 

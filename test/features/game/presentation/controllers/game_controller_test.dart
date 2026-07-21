@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:match_iq/core/constants/game_constants.dart';
 import 'package:match_iq/core/persistence/memory_progress_store.dart';
+import 'package:match_iq/features/game/data/animal_levels.dart';
+import 'package:match_iq/features/game/data/animal_relationships.dart';
 import 'package:match_iq/features/game/data/nature_levels.dart';
 import 'package:match_iq/features/game/data/nature_relationships.dart';
 import 'package:match_iq/features/game/domain/models/board_position.dart';
@@ -74,6 +77,69 @@ void main() {
     });
   });
 
+  group('Animal levels', () {
+    test('contains exactly 15 deterministic levels', () {
+      final levels = createAnimalLevels();
+
+      expect(levels, hasLength(15));
+      expect(levels.first.rows, 5);
+      expect(levels.first.columns, 5);
+      expect(levels.first.pairs, hasLength(3));
+      expect(levels.last.rows, 14);
+      expect(levels.last.columns, 8);
+      expect(levels.last.pairs, hasLength(10));
+    });
+
+    test('uses animal-only relationships', () {
+      for (final relationship in AnimalRelationships.all) {
+        expect(relationship.category, RelationshipCategory.animals);
+      }
+    });
+
+    test('uses varied relationship colors', () {
+      final colors = {
+        for (final relationship in AnimalRelationships.all)
+          GameConstants.colorForRelationship(relationship.id),
+      };
+
+      expect(colors.length, greaterThanOrEqualTo(8));
+    });
+
+    test('all known solutions validate', () {
+      expect(AnimalLevels.validateAll(), isEmpty);
+    });
+
+    test('known solutions use the whole grid and spread endpoints', () {
+      for (final generatedLevel in createGeneratedAnimalLevels()) {
+        final level = generatedLevel.level;
+        final usedCells = <BoardPosition>{
+          for (final path in generatedLevel.solutionPaths.values) ...path.cells,
+        };
+        final straightEndpointPairs = level.pairs.where((pair) {
+          return pair.sourcePosition.row == pair.targetPosition.row ||
+              pair.sourcePosition.column == pair.targetPosition.column;
+        }).length;
+
+        expect(usedCells.length, level.rows * level.columns);
+        expect(straightEndpointPairs, lessThan(level.pairs.length ~/ 2));
+      }
+    });
+
+    test('known solution paths complete every level', () {
+      for (final generatedLevel in createGeneratedAnimalLevels()) {
+        final controller = GameController(initialLevel: generatedLevel.level);
+
+        _completeGeneratedLevel(controller, generatedLevel);
+
+        expect(
+          controller.connectedPairCount,
+          generatedLevel.level.pairs.length,
+        );
+        expect(controller.isLevelComplete, isTrue);
+      }
+    });
+  });
+
   group('AppProgressController', () {
     test(
       'first launch defaults to Nature World and level 1 unlocked',
@@ -84,6 +150,7 @@ void main() {
 
         expect(controller.activeTheme.id, ThemeCatalog.natureThemeId);
         expect(controller.highestUnlockedLevel(ThemeCatalog.natureThemeId), 1);
+        expect(controller.highestUnlockedLevel(ThemeCatalog.animalThemeId), 1);
         expect(controller.hasPlayedLevel, isFalse);
       },
     );
@@ -147,12 +214,12 @@ void main() {
       final controller = _progressController(store);
 
       await controller.load();
-      await controller.selectTheme(ThemeCatalog.natureThemeId);
+      await controller.selectTheme(ThemeCatalog.animalThemeId);
 
       final restored = _progressController(store);
       await restored.load();
 
-      expect(restored.activeTheme.id, ThemeCatalog.natureThemeId);
+      expect(restored.activeTheme.id, ThemeCatalog.animalThemeId);
     });
   });
 
@@ -222,6 +289,62 @@ void main() {
       expect(controller.completedPaths, contains('seed_to_flower'));
     });
 
+    test('active path cannot extend past a reached endpoint', () {
+      final controller = GameController(initialLevel: _adjacentEndpointLevel);
+
+      controller.startPath(const BoardPosition(row: 0, column: 0));
+      expect(
+        controller.extendPath(const BoardPosition(row: 0, column: 1)),
+        isTrue,
+      );
+
+      expect(
+        controller.extendPath(const BoardPosition(row: 0, column: 2)),
+        isFalse,
+      );
+      expect(controller.activePath, [
+        const BoardPosition(row: 0, column: 0),
+        const BoardPosition(row: 0, column: 1),
+      ]);
+    });
+
+    test('entering a completed path middle cuts it and continues', () {
+      final controller = GameController(initialLevel: _cutRuleLevel);
+      final completedPath = GamePath(
+        relationshipId: NatureRelationships.treeToFruit.id,
+        cells: const [
+          BoardPosition(row: 1, column: 0),
+          BoardPosition(row: 1, column: 1),
+          BoardPosition(row: 1, column: 2),
+        ],
+        isComplete: true,
+      );
+
+      _completeGamePath(controller, completedPath);
+      expect(
+        controller.completedPaths,
+        contains(NatureRelationships.treeToFruit.id),
+      );
+
+      expect(
+        controller.startPath(const BoardPosition(row: 0, column: 1)),
+        isTrue,
+      );
+      final cutPath = controller.cutCompletedPathAtAndExtend(
+        const BoardPosition(row: 1, column: 1),
+      );
+
+      expect(cutPath?.relationshipId, NatureRelationships.treeToFruit.id);
+      expect(
+        controller.completedPaths,
+        isNot(contains(NatureRelationships.treeToFruit.id)),
+      );
+      expect(controller.activePath, [
+        const BoardPosition(row: 0, column: 1),
+        const BoardPosition(row: 1, column: 1),
+      ]);
+    });
+
     test('rectangular 14x8 level is accepted', () {
       final level = createNatureLevel(levelNumber: 15);
       final controller = GameController(initialLevel: level);
@@ -273,6 +396,25 @@ const _adjacentEndpointLevel = GameLevel(
       relationship: NatureRelationships.seedToFlower,
       sourcePosition: BoardPosition(row: 0, column: 0),
       targetPosition: BoardPosition(row: 0, column: 1),
+    ),
+  ],
+);
+
+const _cutRuleLevel = GameLevel(
+  id: 'cut_rule_test',
+  name: 'Cut Rule Test',
+  rows: 4,
+  columns: 4,
+  pairs: [
+    LevelPairPlacement(
+      relationship: NatureRelationships.seedToFlower,
+      sourcePosition: BoardPosition(row: 0, column: 1),
+      targetPosition: BoardPosition(row: 3, column: 1),
+    ),
+    LevelPairPlacement(
+      relationship: NatureRelationships.treeToFruit,
+      sourcePosition: BoardPosition(row: 1, column: 0),
+      targetPosition: BoardPosition(row: 1, column: 2),
     ),
   ],
 );

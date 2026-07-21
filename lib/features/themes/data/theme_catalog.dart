@@ -1,37 +1,53 @@
 import 'package:flutter/material.dart';
 
+import '../../game/data/animal_levels.dart';
 import '../../game/data/nature_levels.dart';
+import '../../game/data/themed_level_builder.dart';
 import '../domain/game_theme.dart';
 
 class ThemeCatalog {
   const ThemeCatalog._();
 
   static const natureThemeId = 'nature';
+  static const animalThemeId = 'animals';
 
-  static final GameTheme natureWorld = GameTheme(
-    id: natureThemeId,
-    name: 'Nature World',
-    description: 'Connect things that belong together in nature.',
-    primaryColor: const Color(0xFF2E7D32),
-    secondaryColor: const Color(0xFF81C784),
-    accentColor: const Color(0xFFFFC107),
-    icon: Icons.local_florist,
-    levels: createNatureLevels(),
-    isAvailable: true,
-  );
+  static GameTheme get natureWorld => natureWorldFor();
+
+  static GameTheme get animalWorld => animalWorldFor();
+
+  static GameTheme natureWorldFor({
+    ThemeBoardProfile profile = ThemeBoardProfile.large,
+  }) {
+    return GameTheme(
+      id: natureThemeId,
+      name: 'Nature World',
+      description: 'Connect things that belong together in nature.',
+      primaryColor: const Color(0xFF2E7D32),
+      secondaryColor: const Color(0xFF81C784),
+      accentColor: const Color(0xFFFFC107),
+      icon: Icons.local_florist,
+      levels: createNatureLevels(profile: profile),
+      isAvailable: true,
+    );
+  }
+
+  static GameTheme animalWorldFor({
+    ThemeBoardProfile profile = ThemeBoardProfile.large,
+  }) {
+    return GameTheme(
+      id: animalThemeId,
+      name: 'Animal World',
+      description: 'Match animals with growth, homes, food, and habitats.',
+      primaryColor: const Color(0xFF8D5A2B),
+      secondaryColor: const Color(0xFFD8A86D),
+      accentColor: const Color(0xFF4DB6AC),
+      icon: Icons.pets,
+      levels: createAnimalLevels(profile: profile),
+      isAvailable: true,
+    );
+  }
 
   static const lockedThemes = [
-    GameTheme(
-      id: 'animals',
-      name: 'Animals World',
-      description: 'Animal friends and their homes.',
-      primaryColor: Color(0xFF6D4C41),
-      secondaryColor: Color(0xFFA1887F),
-      accentColor: Color(0xFFFFB74D),
-      icon: Icons.pets,
-      levels: [],
-      isAvailable: false,
-    ),
     GameTheme(
       id: 'food',
       name: 'Food World',
@@ -57,6 +73,23 @@ class ThemeCatalog {
   ];
 
   static List<GameTheme> get all {
-    return List<GameTheme>.unmodifiable([natureWorld, ...lockedThemes]);
+    return List<GameTheme>.unmodifiable([
+      natureWorld,
+      animalWorld,
+      ...lockedThemes,
+    ]);
+  }
+
+  static GameTheme? themeById(
+    String themeId, {
+    ThemeBoardProfile profile = ThemeBoardProfile.large,
+  }) {
+    return switch (themeId) {
+      natureThemeId => natureWorldFor(profile: profile),
+      animalThemeId => animalWorldFor(profile: profile),
+      'food' => lockedThemes[0],
+      'home' => lockedThemes[1],
+      _ => null,
+    };
   }
 }

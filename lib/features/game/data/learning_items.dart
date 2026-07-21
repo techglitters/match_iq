@@ -57,6 +57,12 @@ class LearningItems {
     icon: Icons.flutter_dash,
   );
 
+  static const caterpillar = LearningItem(
+    id: 'caterpillar',
+    name: 'Caterpillar',
+    icon: Icons.bug_report,
+  );
+
   static const mountain = LearningItem(
     id: 'mountain',
     name: 'Mountain',
@@ -84,6 +90,86 @@ class LearningItems {
   );
 
   static const nest = LearningItem(id: 'nest', name: 'Nest', icon: Icons.home);
+
+  static const puppy = LearningItem(
+    id: 'puppy',
+    name: 'Puppy',
+    icon: Icons.pets,
+  );
+
+  static const dog = LearningItem(id: 'dog', name: 'Dog', icon: Icons.pets);
+
+  static const kitten = LearningItem(
+    id: 'kitten',
+    name: 'Kitten',
+    icon: Icons.pets,
+  );
+
+  static const cat = LearningItem(id: 'cat', name: 'Cat', icon: Icons.pets);
+
+  static const tadpole = LearningItem(
+    id: 'tadpole',
+    name: 'Tadpole',
+    icon: Icons.water_drop,
+  );
+
+  static const frog = LearningItem(
+    id: 'frog',
+    name: 'Frog',
+    icon: Icons.bug_report,
+  );
+
+  static const fish = LearningItem(id: 'fish', name: 'Fish', icon: Icons.water);
+
+  static const pond = LearningItem(id: 'pond', name: 'Pond', icon: Icons.water);
+
+  static const duck = LearningItem(
+    id: 'duck',
+    name: 'Duck',
+    icon: Icons.flutter_dash,
+  );
+
+  static const sheep = LearningItem(
+    id: 'sheep',
+    name: 'Sheep',
+    icon: Icons.pets,
+  );
+
+  static const wool = LearningItem(id: 'wool', name: 'Wool', icon: Icons.cloud);
+
+  static const cow = LearningItem(id: 'cow', name: 'Cow', icon: Icons.pets);
+
+  static const horse = LearningItem(
+    id: 'horse',
+    name: 'Horse',
+    icon: Icons.pets,
+  );
+
+  static const stable = LearningItem(
+    id: 'stable',
+    name: 'Stable',
+    icon: Icons.home,
+  );
+
+  static const bear = LearningItem(id: 'bear', name: 'Bear', icon: Icons.pets);
+
+  static const cave = LearningItem(
+    id: 'cave',
+    name: 'Cave',
+    icon: Icons.terrain,
+  );
+
+  static const rabbit = LearningItem(
+    id: 'rabbit',
+    name: 'Rabbit',
+    icon: Icons.pets,
+  );
+
+  static const carrot = LearningItem(
+    id: 'carrot',
+    name: 'Carrot',
+    icon: Icons.eco,
+  );
 
   static const moon = LearningItem(
     id: 'moon',

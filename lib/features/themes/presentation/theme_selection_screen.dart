@@ -38,7 +38,7 @@ class ThemeSelectionScreen extends StatelessWidget {
                     onTap: theme.isAvailable
                         ? () => Navigator.of(
                             context,
-                          ).pushNamed(AppRoutes.natureTheme)
+                          ).pushNamed(AppRoutes.themeDetail(theme.id))
                         : () => _showComingSoon(context),
                   );
                 },

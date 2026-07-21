@@ -14,7 +14,12 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final appProgress = context.watch<AppProgressController>();
     final nature = ThemeCatalog.natureWorld;
-    final natureProgress = appProgress.progressForTheme(nature.id);
+    final continueTheme =
+        appProgress.themeById(
+          appProgress.data.lastPlayedThemeId ?? ThemeCatalog.natureThemeId,
+        ) ??
+        nature;
+    final continueProgress = appProgress.progressForTheme(continueTheme.id);
     final continueLevel = appProgress.continueLevelNumber();
     if (!appProgress.data.hasSeenHome) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -37,12 +42,16 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 26),
                   if (appProgress.hasPlayedLevel) ...[
                     _ContinueCard(
+                      theme: continueTheme,
                       levelNumber: continueLevel,
-                      progress: natureProgress.totalStars / nature.maxStars,
-                      stars: natureProgress.levelProgress(continueLevel).stars,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pushNamed(AppRoutes.natureLevel(continueLevel)),
+                      progress:
+                          continueProgress.totalStars / continueTheme.maxStars,
+                      stars: continueProgress
+                          .levelProgress(continueLevel)
+                          .stars,
+                      onTap: () => Navigator.of(context).pushNamed(
+                        AppRoutes.themeLevel(continueTheme.id, continueLevel),
+                      ),
                     ),
                     const SizedBox(height: 24),
                   ] else ...[
@@ -68,15 +77,16 @@ class HomeScreen extends StatelessWidget {
                       separatorBuilder: (_, _) => const SizedBox(width: 14),
                       itemBuilder: (context, index) {
                         final theme = ThemeCatalog.all[index];
+                        final progress = appProgress.progressForTheme(theme.id);
                         return _ThemePreviewCard(
                           theme: theme,
-                          progress: theme.id == nature.id
-                              ? natureProgress.totalStars / nature.maxStars
-                              : 0,
+                          progress: theme.maxStars == 0
+                              ? 0
+                              : progress.totalStars / theme.maxStars,
                           onTap: theme.isAvailable
                               ? () => Navigator.of(
                                   context,
-                                ).pushNamed(AppRoutes.natureTheme)
+                                ).pushNamed(AppRoutes.themeDetail(theme.id))
                               : () => _showComingSoon(context),
                         );
                       },
@@ -137,12 +147,14 @@ class _HomeHeader extends StatelessWidget {
 
 class _ContinueCard extends StatelessWidget {
   const _ContinueCard({
+    required this.theme,
     required this.levelNumber,
     required this.progress,
     required this.stars,
     required this.onTap,
   });
 
+  final GameTheme theme;
   final int levelNumber;
   final double progress;
   final int stars;
@@ -158,10 +170,7 @@ class _ContinueCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              _ThemeIconBubble(
-                icon: Icons.local_florist,
-                color: colorScheme.primary,
-              ),
+              _ThemeIconBubble(icon: theme.icon, color: theme.primaryColor),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -172,7 +181,7 @@ class _ContinueCard extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 4),
-                    Text('Nature World - Level $levelNumber'),
+                    Text('${theme.name} - Level $levelNumber'),
                   ],
                 ),
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../features/themes/data/theme_catalog.dart';
 import '../../features/themes/domain/game_theme.dart';
+import 'animal_world_background.dart';
 import 'nature_world_background.dart';
 
 class ThemeBackground extends StatelessWidget {
@@ -13,6 +14,7 @@ class ThemeBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (theme.id) {
       ThemeCatalog.natureThemeId => const NatureWorldBackground(),
+      ThemeCatalog.animalThemeId => const AnimalWorldBackground(),
       _ => const NatureWorldBackground(),
     };
   }

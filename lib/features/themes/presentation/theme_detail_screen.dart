@@ -4,20 +4,33 @@ import 'package:provider/provider.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../data/theme_catalog.dart';
+import '../domain/game_theme.dart';
 import 'controllers/app_progress_controller.dart';
 
 class ThemeDetailScreen extends StatelessWidget {
-  const ThemeDetailScreen({super.key});
+  const ThemeDetailScreen({
+    this.themeId = ThemeCatalog.natureThemeId,
+    super.key,
+  });
+
+  final String themeId;
 
   @override
   Widget build(BuildContext context) {
     final appProgress = context.watch<AppProgressController>();
-    final theme = ThemeCatalog.natureWorld;
+    final theme = appProgress.themeById(themeId) ?? ThemeCatalog.natureWorld;
     final progress = appProgress.progressForTheme(theme.id);
     final playLevel = appProgress.playLevelNumber(theme.id);
     final completion = theme.maxStars == 0
         ? 0.0
         : progress.totalStars / theme.maxStars;
+    if (theme.isAvailable && appProgress.activeTheme.id != theme.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          context.read<AppProgressController>().selectTheme(theme.id);
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -43,6 +56,7 @@ class ThemeDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   _HeroPanel(
+                    theme: theme,
                     completion: completion,
                     totalStars: progress.totalStars,
                     unlockedLevel: progress.highestUnlockedLevel,
@@ -53,12 +67,13 @@ class ThemeDetailScreen extends StatelessWidget {
                     icon: Icons.play_arrow_rounded,
                     onPressed: () => Navigator.of(
                       context,
-                    ).pushNamed(AppRoutes.natureLevel(playLevel)),
+                    ).pushNamed(AppRoutes.themeLevel(theme.id, playLevel)),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: () =>
-                        Navigator.of(context).pushNamed(AppRoutes.natureLevels),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).pushNamed(AppRoutes.themeLevels(theme.id)),
                     icon: const Icon(Icons.map_rounded),
                     label: const Text('Level Map'),
                   ),
@@ -74,11 +89,13 @@ class ThemeDetailScreen extends StatelessWidget {
 
 class _HeroPanel extends StatelessWidget {
   const _HeroPanel({
+    required this.theme,
     required this.completion,
     required this.totalStars,
     required this.unlockedLevel,
   });
 
+  final GameTheme theme;
   final double completion;
   final int totalStars;
   final int unlockedLevel;
@@ -104,14 +121,10 @@ class _HeroPanel extends StatelessWidget {
                   width: 76,
                   height: 76,
                   decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.14),
+                    color: theme.primaryColor.withValues(alpha: 0.14),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.local_florist,
-                    color: colorScheme.primary,
-                    size: 42,
-                  ),
+                  child: Icon(theme.icon, color: theme.primaryColor, size: 42),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -119,13 +132,11 @@ class _HeroPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Nature World',
+                        theme.name,
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 6),
-                      const Text(
-                        'Connect things that belong together in nature.',
-                      ),
+                      Text(theme.description),
                     ],
                   ),
                 ),
@@ -138,7 +149,10 @@ class _HeroPanel extends StatelessWidget {
               children: [
                 _MetricPill(label: 'Levels', value: '15'),
                 _MetricPill(label: 'Unlocked', value: '$unlockedLevel'),
-                _MetricPill(label: 'Stars', value: '$totalStars / 45'),
+                _MetricPill(
+                  label: 'Stars',
+                  value: '$totalStars / ${theme.maxStars}',
+                ),
               ],
             ),
             const SizedBox(height: 18),

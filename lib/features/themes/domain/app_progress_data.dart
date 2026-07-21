@@ -14,7 +14,10 @@ class AppProgressData {
       lastPlayedThemeId = null,
       lastPlayedLevelNumber = null,
       hasSeenHome = false,
-      themes = const {'nature': ThemeProgress.initial()};
+      themes = const {
+        'nature': ThemeProgress.initial(),
+        'animals': ThemeProgress.initial(),
+      };
 
   final String activeThemeId;
   final String? lastPlayedThemeId;
@@ -81,6 +84,7 @@ class AppProgressData {
       hasSeenHome: json['hasSeenHome'] as bool? ?? false,
       themes: Map<String, ThemeProgress>.unmodifiable({
         'nature': const ThemeProgress.initial(),
+        'animals': const ThemeProgress.initial(),
         ...themes,
       }),
     );
