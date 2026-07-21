@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/app_routes.dart';
+import '../../../themes/domain/level_completion_result.dart';
+import '../../../themes/presentation/controllers/app_progress_controller.dart';
 import '../controllers/game_controller.dart';
 import '../widgets/game_board.dart';
 import '../widgets/game_bottom_controls.dart';
@@ -9,7 +11,14 @@ import '../widgets/game_header.dart';
 import '../widgets/level_complete_dialog.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  const GameScreen({
+    required this.themeId,
+    required this.levelNumber,
+    super.key,
+  });
+
+  final String themeId;
+  final int levelNumber;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -17,30 +26,44 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _dialogShown = false;
+  bool _savingCompletion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      context.read<AppProgressController>().recordLevelOpened(
+        themeId: widget.themeId,
+        levelNumber: widget.levelNumber,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Consumer<GameController>(
           builder: (context, controller, _) {
             _showCompleteDialogIfNeeded(controller);
 
             return Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
               child: Column(
                 children: [
-                  GameHeader(controller: controller),
-                  const SizedBox(height: 18),
-                  Expanded(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 560),
-                        child: const GameBoard(),
-                      ),
-                    ),
+                  GameHeader(
+                    controller: controller,
+                    onBack: () => Navigator.of(
+                      context,
+                    ).pushReplacementNamed(AppRoutes.natureLevels),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 10),
+                  Expanded(child: _BoardHost(controller: controller)),
+                  const SizedBox(height: 10),
                   GameBottomControls(
                     canUndo: controller.completedPathOrder.isNotEmpty,
                     onUndo: controller.undoLastPath,
@@ -61,22 +84,29 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showCompleteDialogIfNeeded(GameController controller) {
-    if (!controller.isLevelComplete || _dialogShown) {
+    if (!controller.isLevelComplete || _dialogShown || _savingCompletion) {
       return;
     }
 
     _dialogShown = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    _savingCompletion = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final result = await context.read<AppProgressController>().completeLevel(
+        themeId: widget.themeId,
+        levelNumber: widget.levelNumber,
+        moves: controller.moves,
+      );
+      _savingCompletion = false;
+
       if (!mounted) {
         return;
       }
-
       showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) {
           return LevelCompleteDialog(
-            moves: controller.moves,
+            result: result,
             onPlayAgain: () {
               Navigator.of(dialogContext).pop();
               controller.restartLevel();
@@ -84,15 +114,20 @@ class _GameScreenState extends State<GameScreen> {
                 setState(() => _dialogShown = false);
               }
             },
-            onNextLevel: controller.hasNextLevel
+            onNextLevel: _canOpenNext(result)
                 ? () {
                     Navigator.of(dialogContext).pop();
-                    controller.goToNextLevel();
-                    if (mounted) {
-                      setState(() => _dialogShown = false);
-                    }
+                    Navigator.of(context).pushReplacementNamed(
+                      AppRoutes.natureLevel(widget.levelNumber + 1),
+                    );
                   }
                 : null,
+            onLevelMap: () {
+              Navigator.of(dialogContext).pop();
+              Navigator.of(
+                context,
+              ).pushReplacementNamed(AppRoutes.natureLevels);
+            },
             onHome: () {
               Navigator.of(dialogContext).pop();
               if (!mounted) {
@@ -106,5 +141,43 @@ class _GameScreenState extends State<GameScreen> {
         },
       );
     });
+  }
+
+  bool _canOpenNext(LevelCompletionResult result) {
+    return !result.isThemeComplete && result.unlockedLevel > widget.levelNumber;
+  }
+}
+
+class _BoardHost extends StatelessWidget {
+  const _BoardHost({required this.controller});
+
+  final GameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final aspectRatio = controller.level.columns / controller.level.rows;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth > 560
+            ? 560.0
+            : constraints.maxWidth;
+        var boardWidth = maxWidth;
+        var boardHeight = boardWidth / aspectRatio;
+
+        if (boardHeight > constraints.maxHeight) {
+          boardHeight = constraints.maxHeight;
+          boardWidth = boardHeight * aspectRatio;
+        }
+
+        return Center(
+          child: SizedBox(
+            width: boardWidth,
+            height: boardHeight,
+            child: const GameBoard(),
+          ),
+        );
+      },
+    );
   }
 }

@@ -1,84 +1,329 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/widgets/primary_button.dart';
+import '../../themes/data/theme_catalog.dart';
+import '../../themes/domain/game_theme.dart';
+import '../../themes/presentation/controllers/app_progress_controller.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final appProgress = context.watch<AppProgressController>();
+    final nature = ThemeCatalog.natureWorld;
+    final natureProgress = appProgress.progressForTheme(nature.id);
+    final continueLevel = appProgress.continueLevelNumber();
+    if (!appProgress.data.hasSeenHome) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          context.read<AppProgressController>().markHomeSeen();
+        }
+      });
+    }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(child: _CloudLayer(color: colorScheme.tertiary)),
-            Positioned(
-              top: 12,
-              right: 12,
-              child: IconButton(
-                onPressed: null,
-                icon: const Icon(Icons.settings),
-                tooltip: 'Settings',
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+              sliver: SliverList.list(
+                children: [
+                  _HomeHeader(onSettings: () {}),
+                  const SizedBox(height: 26),
+                  if (appProgress.hasPlayedLevel) ...[
+                    _ContinueCard(
+                      levelNumber: continueLevel,
+                      progress: natureProgress.totalStars / nature.maxStars,
+                      stars: natureProgress.levelProgress(continueLevel).stars,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pushNamed(AppRoutes.natureLevel(continueLevel)),
+                    ),
+                    const SizedBox(height: 24),
+                  ] else ...[
+                    _FirstPlayCard(
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pushNamed(AppRoutes.natureTheme),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  _SectionHeader(
+                    title: 'Themes',
+                    actionLabel: 'Browse',
+                    onAction: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.themes),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 196,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: ThemeCatalog.all.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 14),
+                      itemBuilder: (context, index) {
+                        final theme = ThemeCatalog.all[index];
+                        return _ThemePreviewCard(
+                          theme: theme,
+                          progress: theme.id == nature.id
+                              ? natureProgress.totalStars / nature.maxStars
+                              : 0,
+                          onTap: theme.isAvailable
+                              ? () => Navigator.of(
+                                  context,
+                                ).pushNamed(AppRoutes.natureTheme)
+                              : () => _showComingSoon(context),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _DisabledDailyPuzzleCard(),
+                ],
               ),
             ),
-            Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 144,
-                        height: 144,
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.primary.withValues(
-                                alpha: 0.16,
-                              ),
-                              blurRadius: 28,
-                              offset: const Offset(0, 14),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.local_florist,
-                          color: colorScheme.primary,
-                          size: 82,
-                        ),
-                      ),
-                      const SizedBox(height: 34),
-                      Text(
-                        'Connect & Grow',
-                        style: Theme.of(context).textTheme.headlineLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Match things that belong together',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 42),
-                      PrimaryButton(
-                        label: 'Play',
-                        icon: Icons.play_arrow_rounded,
-                        onPressed: () {
-                          Navigator.of(context).pushNamed(AppRoutes.game);
-                        },
-                      ),
-                      const SizedBox(height: 26),
-                      _PlayButtonAccents(color: colorScheme.primary),
-                    ],
-                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showComingSoon(BuildContext context) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Coming soon')));
+  }
+}
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({required this.onSettings});
+
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Link & Learn',
+                style: Theme.of(context).textTheme.headlineLarge,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Match things that belong together',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ],
+          ),
+        ),
+        IconButton.filledTonal(
+          onPressed: onSettings,
+          icon: const Icon(Icons.settings_rounded),
+          tooltip: 'Settings',
+        ),
+      ],
+    );
+  }
+}
+
+class _ContinueCard extends StatelessWidget {
+  const _ContinueCard({
+    required this.levelNumber,
+    required this.progress,
+    required this.stars,
+    required this.onTap,
+  });
+
+  final int levelNumber;
+  final double progress;
+  final int stars;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _ThemeIconBubble(
+                icon: Icons.local_florist,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Continue Playing',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Nature World - Level $levelNumber'),
+                  ],
                 ),
+              ),
+              _Stars(stars: stars),
+            ],
+          ),
+          const SizedBox(height: 18),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0, 1),
+              minHeight: 10,
+              backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
+            ),
+          ),
+          const SizedBox(height: 18),
+          PrimaryButton(
+            label: 'Continue',
+            icon: Icons.play_arrow_rounded,
+            onPressed: onTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FirstPlayCard extends StatelessWidget {
+  const _FirstPlayCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Row(
+        children: [
+          const _ThemeIconBubble(
+            icon: Icons.local_florist,
+            color: Color(0xFF2E7D32),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Nature World',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 5),
+                const Text('Seeds, flowers, trees, rain, and more'),
+              ],
+            ),
+          ),
+          FilledButton(onPressed: onTap, child: const Text('Play')),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final String title;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+        ),
+        TextButton(onPressed: onAction, child: Text(actionLabel)),
+      ],
+    );
+  }
+}
+
+class _ThemePreviewCard extends StatelessWidget {
+  const _ThemePreviewCard({
+    required this.theme,
+    required this.progress,
+    required this.onTap,
+  });
+
+  final GameTheme theme;
+  final double progress;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final locked = !theme.isAvailable;
+
+    return SizedBox(
+      width: 220,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(26),
+        onTap: onTap,
+        child: _GlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _ThemeIconBubble(icon: theme.icon, color: theme.primaryColor),
+                  const Spacer(),
+                  if (locked) const Icon(Icons.lock_rounded),
+                ],
+              ),
+              const Spacer(),
+              Text(theme.name, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(locked ? 'Coming Soon' : '${theme.levels.length} Levels'),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0, 1),
+                  minHeight: 8,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DisabledDailyPuzzleCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: 0.62,
+      child: _GlassCard(
+        child: Row(
+          children: [
+            const Icon(Icons.today_rounded),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Daily Puzzle - Coming Soon',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
             ),
           ],
@@ -88,98 +333,68 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _CloudLayer extends StatelessWidget {
-  const _CloudLayer({required this.color});
+class _GlassCard extends StatelessWidget {
+  const _GlassCard({required this.child});
 
-  final Color color;
-
-  static const _clouds = [
-    _CloudSpec(verticalPosition: 0.07, size: 54, horizontalPosition: 0.02),
-    _CloudSpec(verticalPosition: 0.18, size: 82, horizontalPosition: 0.31),
-    _CloudSpec(verticalPosition: 0.36, size: 46, horizontalPosition: 0.64),
-    _CloudSpec(verticalPosition: 0.57, size: 68, horizontalPosition: 0.17),
-    _CloudSpec(verticalPosition: 0.76, size: 58, horizontalPosition: 0.82),
-  ];
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: RepaintBoundary(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final height = constraints.maxHeight;
-
-            return Stack(
-              children: [
-                for (final cloud in _clouds)
-                  Positioned(
-                    left: width * cloud.horizontalPosition,
-                    top: height * cloud.verticalPosition,
-                    child: _CloudIcon(size: cloud.size, color: color),
-                  ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _CloudIcon extends StatelessWidget {
-  const _CloudIcon({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(Icons.cloud, size: size, color: color.withValues(alpha: 0.15));
-  }
-}
-
-class _PlayButtonAccents extends StatelessWidget {
-  const _PlayButtonAccents({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      hidden: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _DecorativeIcon(icon: Icons.water_drop, color: color),
-          const SizedBox(width: 18),
-          _DecorativeIcon(icon: Icons.grass, color: color),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.80)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
         ],
       ),
+      child: Padding(padding: const EdgeInsets.all(18), child: child),
     );
   }
 }
 
-class _DecorativeIcon extends StatelessWidget {
-  const _DecorativeIcon({required this.icon, required this.color});
+class _ThemeIconBubble extends StatelessWidget {
+  const _ThemeIconBubble({required this.icon, required this.color});
 
   final IconData icon;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Icon(icon, size: 58, color: color.withValues(alpha: 0.22));
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: 32),
+    );
   }
 }
 
-class _CloudSpec {
-  const _CloudSpec({
-    required this.verticalPosition,
-    required this.size,
-    required this.horizontalPosition,
-  });
+class _Stars extends StatelessWidget {
+  const _Stars({required this.stars});
 
-  final double verticalPosition;
-  final double size;
-  final double horizontalPosition;
+  final int stars;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 1; index <= 3; index += 1)
+          Icon(
+            index <= stars ? Icons.star_rounded : Icons.star_border_rounded,
+            color: const Color(0xFFFFB300),
+            size: 18,
+          ),
+      ],
+    );
+  }
 }

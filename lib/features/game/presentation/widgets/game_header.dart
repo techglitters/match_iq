@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
 
 class GameHeader extends StatelessWidget {
-  const GameHeader({required this.controller, super.key});
+  const GameHeader({required this.controller, required this.onBack, super.key});
 
   final GameController controller;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +15,7 @@ class GameHeader extends StatelessWidget {
     return Row(
       children: [
         IconButton(
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: onBack,
           icon: const Icon(Icons.arrow_back_rounded),
           tooltip: 'Back',
           style: IconButton.styleFrom(

@@ -53,118 +53,114 @@ class _GameBoardState extends State<GameBoard>
     final level = controller.level;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return AspectRatio(
-      aspectRatio: 1,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final boardSize = constraints.biggest.shortestSide;
-          final boardGeometry = Size.square(boardSize);
-          final endpointPositions = _endpointPositionsFor(level);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boardGeometry = constraints.biggest;
+        final endpointPositions = _endpointPositionsFor(level);
 
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.86),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha: 0.16),
-                width: 2,
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.86),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: 0.16),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.primary.withValues(alpha: 0.10),
+                blurRadius: 26,
+                offset: const Offset(0, 12),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.primary.withValues(alpha: 0.10),
-                  blurRadius: 26,
-                  offset: const Offset(0, 12),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CustomPaint(
+                  painter: _GameGridPainter(
+                    rows: level.rows,
+                    columns: level.columns,
+                    lineColor: colorScheme.primary.withValues(alpha: 0.12),
+                  ),
+                ),
+                CustomPaint(
+                  painter: GamePathPainter(
+                    completedPaths: controller.completedPaths.values.toList(),
+                    activePath: controller.activeGamePath,
+                    rollbackPath: _rollbackPath,
+                    rollbackProgress: _rollbackController.value,
+                    rollbackColor: _rollbackColor,
+                    rollbackShimmerProgress: _rollbackColor == null
+                        ? null
+                        : _rollbackController.value,
+                    rows: level.rows,
+                    columns: level.columns,
+                    endpointPositions: endpointPositions,
+                  ),
+                ),
+                for (final placement in level.pairs) ...[
+                  _EndpointPlacement(
+                    level: level,
+                    placement: placement,
+                    position: placement.sourcePosition,
+                    boardSize: boardGeometry,
+                    isSource: true,
+                    isConnected: controller.completedPaths.containsKey(
+                      placement.relationship.id,
+                    ),
+                    invalidFeedbackProgress:
+                        _invalidEndpointPosition == placement.sourcePosition
+                        ? _rollbackController.value
+                        : 0,
+                  ),
+                  _EndpointPlacement(
+                    level: level,
+                    placement: placement,
+                    position: placement.targetPosition,
+                    boardSize: boardGeometry,
+                    isSource: false,
+                    isConnected: controller.completedPaths.containsKey(
+                      placement.relationship.id,
+                    ),
+                    invalidFeedbackProgress:
+                        _invalidEndpointPosition == placement.targetPosition
+                        ? _rollbackController.value
+                        : 0,
+                  ),
+                ],
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: controller.isLevelComplete
+                        ? null
+                        : (details) => _handlePanStart(
+                            details.localPosition,
+                            boardGeometry,
+                            level,
+                          ),
+                    onPanUpdate: controller.isLevelComplete
+                        ? null
+                        : (details) => _handlePanUpdate(
+                            details.localPosition,
+                            boardGeometry,
+                            level,
+                          ),
+                    onPanEnd: controller.isLevelComplete
+                        ? null
+                        : (_) => _handlePanEnd(),
+                    onPanCancel: controller.isLevelComplete
+                        ? null
+                        : _handlePanCancel,
+                  ),
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  CustomPaint(
-                    painter: _GameGridPainter(
-                      rows: level.rows,
-                      columns: level.columns,
-                      lineColor: colorScheme.primary.withValues(alpha: 0.12),
-                    ),
-                  ),
-                  CustomPaint(
-                    painter: GamePathPainter(
-                      completedPaths: controller.completedPaths.values.toList(),
-                      activePath: controller.activeGamePath,
-                      rollbackPath: _rollbackPath,
-                      rollbackProgress: _rollbackController.value,
-                      rollbackColor: _rollbackColor,
-                      rollbackShimmerProgress: _rollbackColor == null
-                          ? null
-                          : _rollbackController.value,
-                      rows: level.rows,
-                      columns: level.columns,
-                      endpointPositions: endpointPositions,
-                    ),
-                  ),
-                  for (final placement in level.pairs) ...[
-                    _EndpointPlacement(
-                      level: level,
-                      placement: placement,
-                      position: placement.sourcePosition,
-                      boardSize: boardSize,
-                      isSource: true,
-                      isConnected: controller.completedPaths.containsKey(
-                        placement.relationship.id,
-                      ),
-                      invalidFeedbackProgress:
-                          _invalidEndpointPosition == placement.sourcePosition
-                          ? _rollbackController.value
-                          : 0,
-                    ),
-                    _EndpointPlacement(
-                      level: level,
-                      placement: placement,
-                      position: placement.targetPosition,
-                      boardSize: boardSize,
-                      isSource: false,
-                      isConnected: controller.completedPaths.containsKey(
-                        placement.relationship.id,
-                      ),
-                      invalidFeedbackProgress:
-                          _invalidEndpointPosition == placement.targetPosition
-                          ? _rollbackController.value
-                          : 0,
-                    ),
-                  ],
-                  Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanStart: controller.isLevelComplete
-                          ? null
-                          : (details) => _handlePanStart(
-                              details.localPosition,
-                              boardGeometry,
-                              level,
-                            ),
-                      onPanUpdate: controller.isLevelComplete
-                          ? null
-                          : (details) => _handlePanUpdate(
-                              details.localPosition,
-                              boardGeometry,
-                              level,
-                            ),
-                      onPanEnd: controller.isLevelComplete
-                          ? null
-                          : (_) => _handlePanEnd(),
-                      onPanCancel: controller.isLevelComplete
-                          ? null
-                          : _handlePanCancel,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -335,15 +331,15 @@ class _EndpointPlacement extends StatelessWidget {
   final GameLevel level;
   final LevelPairPlacement placement;
   final BoardPosition position;
-  final double boardSize;
+  final Size boardSize;
   final bool isSource;
   final bool isConnected;
   final double invalidFeedbackProgress;
 
   @override
   Widget build(BuildContext context) {
-    final cellWidth = boardSize / level.columns;
-    final cellHeight = boardSize / level.rows;
+    final cellWidth = boardSize.width / level.columns;
+    final cellHeight = boardSize.height / level.rows;
     final iconSize =
         (cellWidth < cellHeight ? cellWidth : cellHeight) *
         GameConstants.endpointIconScale;

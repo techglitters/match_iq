@@ -342,12 +342,37 @@ class GameController extends ChangeNotifier {
   }
 
   void _validateLevel(GameLevel level) {
-    if (level.pairs.length > GameConstants.maxPairsPerLevel) {
+    final maxPairs =
+        level.rows * level.columns ~/ GameConstants.minimumCellsPerPath;
+    if (level.pairs.length > maxPairs) {
       throw ArgumentError.value(
         level.pairs.length,
         'pairs.length',
-        'A level can contain at most ${GameConstants.maxPairsPerLevel} pairs.',
+        'A ${level.rows}x${level.columns} level can contain at most $maxPairs pairs.',
       );
+    }
+
+    final endpoints = <BoardPosition>{};
+    for (final pair in level.pairs) {
+      for (final endpoint in [pair.sourcePosition, pair.targetPosition]) {
+        if (endpoint.row < 0 ||
+            endpoint.row >= level.rows ||
+            endpoint.column < 0 ||
+            endpoint.column >= level.columns) {
+          throw ArgumentError.value(
+            endpoint,
+            'endpoint',
+            'Endpoint must be inside the level board.',
+          );
+        }
+        if (!endpoints.add(endpoint)) {
+          throw ArgumentError.value(
+            endpoint,
+            'endpoint',
+            'Endpoints must be unique.',
+          );
+        }
+      }
     }
   }
 

@@ -13,6 +13,12 @@ class LearningItems {
     icon: Icons.local_florist,
   );
 
+  static const bee = LearningItem(
+    id: 'bee',
+    name: 'Bee',
+    icon: Icons.bug_report,
+  );
+
   static const tree = LearningItem(id: 'tree', name: 'Tree', icon: Icons.park);
 
   static const fruit = LearningItem(
@@ -45,6 +51,12 @@ class LearningItems {
     icon: Icons.eco,
   );
 
+  static const butterfly = LearningItem(
+    id: 'butterfly',
+    name: 'Butterfly',
+    icon: Icons.flutter_dash,
+  );
+
   static const mountain = LearningItem(
     id: 'mountain',
     name: 'Mountain',
@@ -72,6 +84,24 @@ class LearningItems {
   );
 
   static const nest = LearningItem(id: 'nest', name: 'Nest', icon: Icons.home);
+
+  static const moon = LearningItem(
+    id: 'moon',
+    name: 'Moon',
+    icon: Icons.dark_mode,
+  );
+
+  static const night = LearningItem(
+    id: 'night',
+    name: 'Night',
+    icon: Icons.nights_stay,
+  );
+
+  static const garden = LearningItem(
+    id: 'garden',
+    name: 'Garden',
+    icon: Icons.yard,
+  );
 
   static const snow = LearningItem(
     id: 'snow',
