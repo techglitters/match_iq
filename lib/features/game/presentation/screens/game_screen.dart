@@ -7,9 +7,9 @@ import '../../../themes/domain/level_completion_result.dart';
 import '../../../themes/presentation/controllers/app_progress_controller.dart';
 import '../controllers/game_controller.dart';
 import '../widgets/game_board.dart';
-import '../widgets/game_bottom_controls.dart';
 import '../widgets/game_header.dart';
 import '../widgets/level_complete_dialog.dart';
+import '../widgets/matched_pairs_tray.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
@@ -69,16 +69,9 @@ class _GameScreenState extends State<GameScreen> {
                   const SizedBox(height: 10),
                   Expanded(child: _BoardHost(controller: controller)),
                   const SizedBox(height: 10),
-                  GameBottomControls(
-                    canUndo: controller.completedPathOrder.isNotEmpty,
-                    onUndo: controller.undoLastPath,
-                    onRestart: () {
-                      controller.restartLevel();
-                      if (_dialogShown) {
-                        setState(() => _dialogShown = false);
-                      }
-                    },
-                  ),
+                  MatchedPairsTray(controller: controller),
+                  if (controller.completedPathOrder.isNotEmpty)
+                    const SizedBox(height: 10),
                 ],
               ),
             );

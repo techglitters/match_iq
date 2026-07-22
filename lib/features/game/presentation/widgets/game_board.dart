@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -18,15 +21,19 @@ class GameBoard extends StatefulWidget {
   State<GameBoard> createState() => _GameBoardState();
 }
 
-class _GameBoardState extends State<GameBoard>
-    with SingleTickerProviderStateMixin {
+enum _BoardFeedbackType { none, successWave, wrongShimmer }
+
+class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   late final AnimationController _rollbackController;
+  late final AnimationController _feedbackController;
   BoardPosition? _lastPanPosition;
   Offset? _activeDragPosition;
   GamePath? _rollbackPath;
   SplitRollbackPath? _splitRollbackPath;
   Color? _rollbackColor;
   BoardPosition? _invalidEndpointPosition;
+  _BoardFeedbackType _feedbackType = _BoardFeedbackType.none;
+  Offset? _feedbackOrigin;
 
   @override
   void initState() {
@@ -38,6 +45,13 @@ class _GameBoardState extends State<GameBoard>
           )
           ..addListener(_handleRollbackTick)
           ..addStatusListener(_handleRollbackStatus);
+    _feedbackController =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 620),
+          )
+          ..addListener(_handleFeedbackTick)
+          ..addStatusListener(_handleFeedbackStatus);
   }
 
   @override
@@ -45,6 +59,10 @@ class _GameBoardState extends State<GameBoard>
     _rollbackController
       ..removeListener(_handleRollbackTick)
       ..removeStatusListener(_handleRollbackStatus)
+      ..dispose();
+    _feedbackController
+      ..removeListener(_handleFeedbackTick)
+      ..removeStatusListener(_handleFeedbackStatus)
       ..dispose();
     super.dispose();
   }
@@ -88,6 +106,22 @@ class _GameBoardState extends State<GameBoard>
                     lineColor: colorScheme.primary.withValues(alpha: 0.12),
                   ),
                 ),
+                if (_feedbackType != _BoardFeedbackType.none)
+                  CustomPaint(
+                    painter: _BoardFeedbackPainter(
+                      type: _feedbackType,
+                      progress: _feedbackController.value,
+                      origin:
+                          _feedbackOrigin ??
+                          Offset(
+                            boardGeometry.width / 2,
+                            boardGeometry.height / 2,
+                          ),
+                      reducedMotion: _shouldReduceMotion(context),
+                      rows: level.rows,
+                      columns: level.columns,
+                    ),
+                  ),
                 CustomPaint(
                   painter: GamePathPainter(
                     completedPaths: controller.completedPaths.values.toList(),
@@ -154,7 +188,7 @@ class _GameBoardState extends State<GameBoard>
                           ),
                     onPanEnd: controller.isLevelComplete
                         ? null
-                        : (_) => _handlePanEnd(),
+                        : (_) => _handlePanEnd(boardGeometry, level),
                     onPanCancel: controller.isLevelComplete
                         ? null
                         : _handlePanCancel,
@@ -200,7 +234,7 @@ class _GameBoardState extends State<GameBoard>
         setState(() {
           _activeDragPosition = null;
         });
-        _triggerWrongEndpointFeedback(rejectedPath, position);
+        _triggerWrongEndpointFeedback(rejectedPath, position, boardSize, level);
         return;
       }
 
@@ -215,7 +249,7 @@ class _GameBoardState extends State<GameBoard>
     _updateActiveDragPosition(controller, localPosition, boardSize);
   }
 
-  void _handlePanEnd() {
+  void _handlePanEnd(Size boardSize, GameLevel level) {
     _lastPanPosition = null;
     final controller = context.read<GameController>();
     final pathBeforeFinish = controller.activeGamePath;
@@ -229,7 +263,17 @@ class _GameBoardState extends State<GameBoard>
     if (!didComplete &&
         pathBeforeFinish != null &&
         pathBeforeFinish.cells.length > 1) {
+      _startBoardFeedback(
+        _BoardFeedbackType.wrongShimmer,
+        _cellCenter(pathBeforeFinish.cells.last, boardSize, level),
+      );
       _startRollback(pathBeforeFinish);
+    } else if (didComplete && pathBeforeFinish != null) {
+      _startBoardFeedback(
+        _BoardFeedbackType.successWave,
+        _cellCenter(pathBeforeFinish.cells.last, boardSize, level),
+      );
+      HapticFeedback.mediumImpact();
     }
   }
 
@@ -249,8 +293,17 @@ class _GameBoardState extends State<GameBoard>
     }
   }
 
-  void _triggerWrongEndpointFeedback(GamePath path, BoardPosition position) {
+  void _triggerWrongEndpointFeedback(
+    GamePath path,
+    BoardPosition position,
+    Size boardSize,
+    GameLevel level,
+  ) {
     HapticFeedback.mediumImpact();
+    _startBoardFeedback(
+      _BoardFeedbackType.wrongShimmer,
+      _cellCenter(position, boardSize, level),
+    );
     _startRollback(
       path,
       color: Theme.of(context).colorScheme.error,
@@ -344,6 +397,49 @@ class _GameBoardState extends State<GameBoard>
     });
   }
 
+  void _startBoardFeedback(_BoardFeedbackType type, Offset origin) {
+    final reducedMotion = _shouldReduceMotion(context);
+    _feedbackController
+      ..stop()
+      ..duration = reducedMotion
+          ? const Duration(milliseconds: 180)
+          : switch (type) {
+              _BoardFeedbackType.successWave => const Duration(
+                milliseconds: 640,
+              ),
+              _BoardFeedbackType.wrongShimmer => const Duration(
+                milliseconds: 460,
+              ),
+              _BoardFeedbackType.none => const Duration(milliseconds: 1),
+            };
+    setState(() {
+      _feedbackType = type;
+      _feedbackOrigin = origin;
+      _feedbackController.value = 0;
+    });
+    _feedbackController.forward(from: 0);
+  }
+
+  void _handleFeedbackTick() {
+    if (_feedbackType == _BoardFeedbackType.none || !mounted) {
+      return;
+    }
+
+    setState(() {});
+  }
+
+  void _handleFeedbackStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _feedbackType = _BoardFeedbackType.none;
+      _feedbackOrigin = null;
+      _feedbackController.value = 0;
+    });
+  }
+
   Set<BoardPosition> _endpointPositionsFor(GameLevel level) {
     return {
       for (final placement in level.pairs) ...[
@@ -381,6 +477,22 @@ class _GameBoardState extends State<GameBoard>
       offset.dx.clamp(0, boardSize.width).toDouble(),
       offset.dy.clamp(0, boardSize.height).toDouble(),
     );
+  }
+
+  Offset _cellCenter(BoardPosition position, Size boardSize, GameLevel level) {
+    final cellWidth = boardSize.width / level.columns;
+    final cellHeight = boardSize.height / level.rows;
+    return Offset(
+      (position.column + 0.5) * cellWidth,
+      (position.row + 0.5) * cellHeight,
+    );
+  }
+
+  bool _shouldReduceMotion(BuildContext context) {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    return mediaQuery?.disableAnimations ??
+        mediaQuery?.accessibleNavigation ??
+        false;
   }
 
   void _updateActiveDragPosition(
@@ -496,5 +608,207 @@ class _GameGridPainter extends CustomPainter {
     return oldDelegate.rows != rows ||
         oldDelegate.columns != columns ||
         oldDelegate.lineColor != lineColor;
+  }
+}
+
+class _BoardFeedbackPainter extends CustomPainter {
+  const _BoardFeedbackPainter({
+    required this.type,
+    required this.progress,
+    required this.origin,
+    required this.reducedMotion,
+    required this.rows,
+    required this.columns,
+  });
+
+  static final SpringDescription _successWaveSpring = SpringDescription(
+    mass: 1,
+    stiffness: 260,
+    damping: 13,
+  );
+
+  final _BoardFeedbackType type;
+  final double progress;
+  final Offset origin;
+  final bool reducedMotion;
+  final int rows;
+  final int columns;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final clampedProgress = progress.clamp(0, 1).toDouble();
+    if (clampedProgress <= 0 || type == _BoardFeedbackType.none) {
+      return;
+    }
+
+    if (reducedMotion) {
+      _drawReducedMotionFlash(canvas, size, clampedProgress);
+      return;
+    }
+
+    switch (type) {
+      case _BoardFeedbackType.successWave:
+        _drawSuccessWave(canvas, size, clampedProgress);
+      case _BoardFeedbackType.wrongShimmer:
+        _drawWrongShimmer(canvas, size, clampedProgress);
+      case _BoardFeedbackType.none:
+        break;
+    }
+  }
+
+  void _drawReducedMotionFlash(Canvas canvas, Size size, double progress) {
+    final color = switch (type) {
+      _BoardFeedbackType.successWave => const Color(0xFF2ECC71),
+      _BoardFeedbackType.wrongShimmer => const Color(0xFFE53935),
+      _BoardFeedbackType.none => Colors.transparent,
+    };
+    final opacity = (1 - progress) * 0.12;
+    final paint = Paint()
+      ..color = color.withValues(alpha: opacity)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(Offset.zero & size, paint);
+  }
+
+  void _drawSuccessWave(Canvas canvas, Size size, double progress) {
+    if (rows <= 0 || columns <= 0) {
+      return;
+    }
+
+    const green = Color(0xFF2ECC71);
+    final fade = (1 - Curves.easeIn.transform(progress)).clamp(0, 1).toDouble();
+    final cellWidth = size.width / columns;
+    final cellHeight = size.height / rows;
+    final cellExtent = math.min(cellWidth, cellHeight);
+    final maxDistance = math.sqrt(
+      size.width * size.width + size.height * size.height,
+    );
+    final spring = SpringSimulation(_successWaveSpring, 0, 0, -7.0);
+    final waveTime = progress * 1.05;
+    final maxDelay = 0.38;
+    final maxLift = math.min(28.0, cellExtent * 0.42);
+    final gap = math.max(1.5, cellExtent * 0.045);
+
+    final washPaint = Paint()
+      ..color = green.withValues(alpha: fade * 0.055)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(Offset.zero & size, washPaint);
+
+    final shadowPaint = Paint()
+      ..color = green.withValues(alpha: 0)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10)
+      ..isAntiAlias = true;
+    final tilePaint = Paint()
+      ..color = green.withValues(alpha: 0)
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    final edgePaint = Paint()
+      ..color = green.withValues(alpha: 0)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.4, cellExtent * 0.035)
+      ..isAntiAlias = true;
+
+    for (var row = 0; row < rows; row += 1) {
+      for (var column = 0; column < columns; column += 1) {
+        final left = column * cellWidth;
+        final top = row * cellHeight;
+        final center = Offset(left + cellWidth / 2, top + cellHeight / 2);
+        final distanceFactor = (center - origin).distance / maxDistance;
+        final localTime = waveTime - distanceFactor * maxDelay;
+        if (localTime < 0 || localTime > 0.74) {
+          continue;
+        }
+
+        final springValue = (-spring.x(
+          localTime,
+        )).clamp(-0.34, 1.22).toDouble();
+        final lift = -springValue * maxLift;
+        final intensity = springValue.abs().clamp(0, 1).toDouble();
+        if (intensity <= 0.01 && lift.abs() <= 0.2) {
+          continue;
+        }
+
+        final cellFade = (1 - (localTime / 0.74)).clamp(0, 1).toDouble();
+        final opacity = intensity * cellFade;
+        final rect = Rect.fromLTWH(
+          left + gap,
+          top + gap,
+          cellWidth - gap * 2,
+          cellHeight - gap * 2,
+        );
+        final shiftedRect = rect.shift(Offset(0, lift));
+        final radius = Radius.circular(math.max(8, cellExtent * 0.20));
+        final shiftedRRect = RRect.fromRectAndRadius(shiftedRect, radius);
+        final shadowRRect = RRect.fromRectAndRadius(
+          rect.shift(Offset(0, math.max(3.0, -lift * 0.30))),
+          radius,
+        );
+
+        shadowPaint.color = green.withValues(alpha: opacity * 0.32);
+        tilePaint.color = green.withValues(alpha: opacity * 0.22);
+        edgePaint.color = green.withValues(alpha: opacity * 0.42);
+
+        canvas
+          ..drawRRect(shadowRRect, shadowPaint)
+          ..drawRRect(shiftedRRect, tilePaint)
+          ..drawRRect(shiftedRRect, edgePaint);
+      }
+    }
+  }
+
+  void _drawWrongShimmer(Canvas canvas, Size size, double progress) {
+    final eased = Curves.easeOutCubic.transform(progress);
+    final fade = math.sin(progress * math.pi).clamp(0, 1).toDouble();
+    const red = Color(0xFFE53935);
+
+    final washPaint = Paint()
+      ..color = red.withValues(alpha: fade * 0.055)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(Offset.zero & size, washPaint);
+
+    final diagonalExtent = math.sqrt(
+      size.width * size.width + size.height * size.height,
+    );
+    final bandWidth = math.max(48.0, math.min(size.width, size.height) * 0.20);
+    final travel = diagonalExtent + bandWidth * 2;
+    final bandOffset = -travel / 2 + travel * eased;
+
+    canvas
+      ..save()
+      ..clipRect(Offset.zero & size)
+      ..translate(size.width / 2, size.height / 2)
+      ..rotate(-0.42);
+
+    final bandRect = Rect.fromLTWH(
+      -diagonalExtent,
+      bandOffset - bandWidth / 2,
+      diagonalExtent * 2,
+      bandWidth,
+    );
+    final bandPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          red.withValues(alpha: 0),
+          red.withValues(alpha: fade * 0.18),
+          red.withValues(alpha: fade * 0.06),
+          red.withValues(alpha: 0),
+        ],
+        stops: const [0, 0.42, 0.58, 1],
+      ).createShader(bandRect)
+      ..isAntiAlias = true;
+    canvas
+      ..drawRect(bandRect, bandPaint)
+      ..restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _BoardFeedbackPainter oldDelegate) {
+    return oldDelegate.type != type ||
+        oldDelegate.progress != progress ||
+        oldDelegate.origin != origin ||
+        oldDelegate.reducedMotion != reducedMotion ||
+        oldDelegate.rows != rows ||
+        oldDelegate.columns != columns;
   }
 }
