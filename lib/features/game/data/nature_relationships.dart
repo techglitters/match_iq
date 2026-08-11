@@ -28,11 +28,11 @@ class NatureRelationships {
     category: RelationshipCategory.nature,
   );
 
-  static const sunToPlant = LearningRelationship(
-    id: 'sun_to_plant',
+  static const sunToDay = LearningRelationship(
+    id: 'sun_to_day',
     source: LearningItems.sun,
-    target: LearningItems.plant,
-    description: 'Plants use sunlight to grow',
+    target: LearningItems.day,
+    description: 'The sun lights up the day',
     category: RelationshipCategory.nature,
   );
 
@@ -44,43 +44,35 @@ class NatureRelationships {
     category: RelationshipCategory.nature,
   );
 
-  static const flowerToButterfly = LearningRelationship(
-    id: 'flower_to_butterfly',
-    source: LearningItems.flower,
+  static const caterpillarToButterfly = LearningRelationship(
+    id: 'nature_caterpillar_to_butterfly',
+    source: LearningItems.caterpillar,
     target: LearningItems.butterfly,
-    description: 'Butterflies visit flowers',
+    description: 'A caterpillar changes into a butterfly',
     category: RelationshipCategory.nature,
   );
 
-  static const leafToTree = LearningRelationship(
-    id: 'leaf_to_tree',
+  static const leafToSoil = LearningRelationship(
+    id: 'leaf_to_soil',
     source: LearningItems.leaf,
-    target: LearningItems.tree,
-    description: 'Leaves grow on trees',
+    target: LearningItems.soil,
+    description: 'Fallen leaves become soil',
     category: RelationshipCategory.nature,
   );
 
-  static const waterToPlant = LearningRelationship(
-    id: 'water_to_plant',
+  static const mountainToRiver = LearningRelationship(
+    id: 'mountain_to_river',
+    source: LearningItems.mountain,
+    target: LearningItems.river,
+    description: 'Rivers can start in mountains',
+    category: RelationshipCategory.nature,
+  );
+
+  static const rainToRainbow = LearningRelationship(
+    id: 'rain_to_rainbow',
     source: LearningItems.rain,
-    target: LearningItems.plant,
-    description: 'Water helps plants grow',
-    category: RelationshipCategory.nature,
-  );
-
-  static const rainToPlant = LearningRelationship(
-    id: 'rain_to_plant',
-    source: LearningItems.rain,
-    target: LearningItems.plant,
-    description: 'Rain helps plants grow',
-    category: RelationshipCategory.nature,
-  );
-
-  static const sunToFlower = LearningRelationship(
-    id: 'sun_to_flower',
-    source: LearningItems.sun,
-    target: LearningItems.flower,
-    description: 'Sunlight helps flowers bloom',
+    target: LearningItems.rainbow,
+    description: 'Rain and light can make a rainbow',
     category: RelationshipCategory.nature,
   );
 
@@ -116,11 +108,19 @@ class NatureRelationships {
     category: RelationshipCategory.nature,
   );
 
-  static const gardenToFlower = LearningRelationship(
-    id: 'garden_to_flower',
-    source: LearningItems.garden,
-    target: LearningItems.flower,
-    description: 'Flowers grow in gardens',
+  static const riverToOcean = LearningRelationship(
+    id: 'river_to_ocean',
+    source: LearningItems.river,
+    target: LearningItems.ocean,
+    description: 'Rivers flow toward the ocean',
+    category: RelationshipCategory.nature,
+  );
+
+  static const fireToSmoke = LearningRelationship(
+    id: 'fire_to_smoke',
+    source: LearningItems.fire,
+    target: LearningItems.smoke,
+    description: 'Smoke rises from fire',
     category: RelationshipCategory.nature,
   );
 
@@ -128,17 +128,17 @@ class NatureRelationships {
     seedToFlower,
     treeToFruit,
     cloudToRain,
-    sunToPlant,
+    sunToDay,
     flowerToBee,
-    flowerToButterfly,
-    leafToTree,
-    waterToPlant,
-    rainToPlant,
-    sunToFlower,
+    caterpillarToButterfly,
+    leafToSoil,
+    mountainToRiver,
     nestToBird,
     moonToNight,
     mountainToSnow,
     windToLeaf,
-    gardenToFlower,
+    fireToSmoke,
+    rainToRainbow,
+    riverToOcean,
   ];
 }

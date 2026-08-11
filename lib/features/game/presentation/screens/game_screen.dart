@@ -15,11 +15,19 @@ class GameScreen extends StatefulWidget {
   const GameScreen({
     required this.themeId,
     required this.levelNumber,
+    this.isDailyPuzzle = false,
+    this.isDailyReplay = false,
+    this.dailyPuzzleId,
+    this.dailySubtitle,
     super.key,
   });
 
   final String themeId;
   final int levelNumber;
+  final bool isDailyPuzzle;
+  final bool isDailyReplay;
+  final String? dailyPuzzleId;
+  final String? dailySubtitle;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -34,6 +42,9 @@ class _GameScreenState extends State<GameScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
+        return;
+      }
+      if (widget.isDailyPuzzle) {
         return;
       }
       context.read<AppProgressController>().recordLevelOpened(
@@ -62,9 +73,16 @@ class _GameScreenState extends State<GameScreen> {
                 children: [
                   GameHeader(
                     controller: controller,
-                    onBack: () => Navigator.of(
-                      context,
-                    ).pushReplacementNamed(AppRoutes.themeLevels(theme.id)),
+                    onBack: () => Navigator.of(context).pushReplacementNamed(
+                      widget.isDailyPuzzle
+                          ? widget.isDailyReplay
+                                ? AppRoutes.dailyHistory
+                                : AppRoutes.home
+                          : AppRoutes.themeLevels(theme.id),
+                    ),
+                    subtitle: widget.isDailyPuzzle
+                        ? widget.dailySubtitle
+                        : null,
                   ),
                   const SizedBox(height: 10),
                   Expanded(child: _BoardHost(controller: controller)),
@@ -92,11 +110,33 @@ class _GameScreenState extends State<GameScreen> {
     _dialogShown = true;
     _savingCompletion = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final result = await context.read<AppProgressController>().completeLevel(
-        themeId: widget.themeId,
-        levelNumber: widget.levelNumber,
-        moves: controller.moves,
-      );
+      final appProgress = context.read<AppProgressController>();
+      final dailyPuzzleId =
+          widget.dailyPuzzleId ?? appProgress.dailyPuzzleDateKey();
+      final earnedStars = controller.level.starsForMoves(controller.moves);
+      final result = widget.isDailyReplay
+          ? LevelCompletionResult(
+              levelNumber: widget.levelNumber,
+              earnedStars: earnedStars,
+              savedStars: earnedStars,
+              moves: controller.moves,
+              bestMoves: controller.moves,
+              unlockedLevel: widget.levelNumber,
+              isThemeComplete: false,
+            )
+          : widget.isDailyPuzzle
+          ? await appProgress.completeDailyPuzzle(
+              dateKey: dailyPuzzleId,
+              themeId: widget.themeId,
+              levelNumber: widget.levelNumber,
+              earnedStars: earnedStars,
+              moves: controller.moves,
+            )
+          : await appProgress.completeLevel(
+              themeId: widget.themeId,
+              levelNumber: widget.levelNumber,
+              moves: controller.moves,
+            );
       _savingCompletion = false;
 
       if (!mounted) {
@@ -109,6 +149,10 @@ class _GameScreenState extends State<GameScreen> {
           return LevelCompleteDialog(
             result: result,
             themeName: themeName,
+            isDailyPuzzle: widget.isDailyPuzzle,
+            isDailyReplay: widget.isDailyReplay,
+            dailySubtitle: widget.dailySubtitle,
+            showLevelMapAction: !widget.isDailyPuzzle,
             onPlayAgain: () {
               Navigator.of(dialogContext).pop();
               controller.restartLevel();
@@ -116,7 +160,7 @@ class _GameScreenState extends State<GameScreen> {
                 setState(() => _dialogShown = false);
               }
             },
-            onNextLevel: _canOpenNext(result)
+            onNextLevel: !widget.isDailyPuzzle && _canOpenNext(result)
                 ? () {
                     Navigator.of(dialogContext).pop();
                     Navigator.of(context).pushReplacementNamed(
@@ -129,9 +173,11 @@ class _GameScreenState extends State<GameScreen> {
                 : null,
             onLevelMap: () {
               Navigator.of(dialogContext).pop();
-              Navigator.of(
-                context,
-              ).pushReplacementNamed(AppRoutes.themeLevels(widget.themeId));
+              Navigator.of(context).pushReplacementNamed(
+                widget.isDailyPuzzle
+                    ? AppRoutes.dailyHistory
+                    : AppRoutes.themeLevels(widget.themeId),
+              );
             },
             onHome: () {
               Navigator.of(dialogContext).pop();

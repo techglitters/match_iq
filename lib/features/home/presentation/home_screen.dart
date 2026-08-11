@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../core/widgets/primary_button.dart';
+import '../../daily/domain/daily_puzzle_challenge.dart';
+import '../../daily/domain/daily_puzzle_result.dart';
 import '../../themes/data/theme_catalog.dart';
 import '../../themes/domain/game_theme.dart';
 import '../../themes/presentation/controllers/app_progress_controller.dart';
@@ -21,6 +23,10 @@ class HomeScreen extends StatelessWidget {
         nature;
     final continueProgress = appProgress.progressForTheme(continueTheme.id);
     final continueLevel = appProgress.continueLevelNumber();
+    final dailyChallenge = appProgress.dailyPuzzleChallenge();
+    final dailyResult = appProgress.dailyPuzzleResult();
+    final dailyStreak = appProgress.dailyStreak();
+    final bestDailyStreak = appProgress.bestDailyStreak();
     if (!appProgress.data.hasSeenHome) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
@@ -38,7 +44,10 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
               sliver: SliverList.list(
                 children: [
-                  _HomeHeader(onSettings: () {}),
+                  _HomeHeader(
+                    onSettings: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.settings),
+                  ),
                   const SizedBox(height: 26),
                   if (appProgress.hasPlayedLevel) ...[
                     _ContinueCard(
@@ -93,7 +102,19 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _DisabledDailyPuzzleCard(),
+                  _DailyPuzzleCard(
+                    challenge: dailyChallenge,
+                    result: dailyResult,
+                    streak: dailyStreak,
+                    bestStreak: bestDailyStreak,
+                    onTap: dailyResult.completed
+                        ? () => _showComeBackTomorrow(context)
+                        : () => Navigator.of(
+                            context,
+                          ).pushNamed(AppRoutes.dailyPuzzle),
+                    onHistory: () =>
+                        Navigator.of(context).pushNamed(AppRoutes.dailyHistory),
+                  ),
                 ],
               ),
             ),
@@ -107,6 +128,12 @@ class HomeScreen extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Coming soon')));
+  }
+
+  void _showComeBackTomorrow(BuildContext context) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Come back tomorrow')));
   }
 }
 
@@ -319,20 +346,130 @@ class _ThemePreviewCard extends StatelessWidget {
   }
 }
 
-class _DisabledDailyPuzzleCard extends StatelessWidget {
+class _DailyPuzzleCard extends StatelessWidget {
+  const _DailyPuzzleCard({
+    required this.challenge,
+    required this.result,
+    required this.streak,
+    required this.bestStreak,
+    required this.onTap,
+    required this.onHistory,
+  });
+
+  final DailyPuzzleChallenge challenge;
+  final DailyPuzzleResult result;
+  final int streak;
+  final int bestStreak;
+  final VoidCallback onTap;
+  final VoidCallback onHistory;
+
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.62,
+    final completed = result.completed;
+    final stars = result.stars;
+    final bestMoves = result.bestMoves ?? result.moves ?? 0;
+    final color = challenge.theme.primaryColor;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(26),
+      onTap: onTap,
       child: _GlassCard(
         child: Row(
           children: [
-            const Icon(Icons.today_rounded),
-            const SizedBox(width: 12),
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                completed ? Icons.check_circle_rounded : challenge.theme.icon,
+                color: color,
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                'Daily Puzzle - Coming Soon',
-                style: Theme.of(context).textTheme.titleMedium,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    challenge.title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(challenge.subtitle),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _TinyPill(
+                        icon: completed
+                            ? Icons.check_rounded
+                            : Icons.play_arrow_rounded,
+                        label: completed
+                            ? 'Solved - $bestMoves moves'
+                            : 'Ready today',
+                      ),
+                      _TinyPill(
+                        icon: Icons.local_fire_department_rounded,
+                        label: 'Streak $streak',
+                      ),
+                      if (bestStreak > streak)
+                        _TinyPill(
+                          icon: Icons.emoji_events_rounded,
+                          label: 'Best $bestStreak',
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (completed)
+              _Stars(stars: stars)
+            else
+              const Icon(Icons.chevron_right_rounded),
+            IconButton(
+              onPressed: onHistory,
+              icon: const Icon(Icons.history_rounded),
+              tooltip: 'Daily history',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TinyPill extends StatelessWidget {
+  const _TinyPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.54),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.12)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: colorScheme.onPrimaryContainer),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onPrimaryContainer,
               ),
             ),
           ],

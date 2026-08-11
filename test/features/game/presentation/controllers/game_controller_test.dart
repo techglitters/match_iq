@@ -3,10 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:match_iq/core/constants/game_constants.dart';
 import 'package:match_iq/core/persistence/memory_progress_store.dart';
+import 'package:match_iq/features/daily/data/daily_puzzle_catalog.dart';
+import 'package:match_iq/features/daily/domain/daily_puzzle_challenge.dart';
+import 'package:match_iq/features/daily/domain/daily_puzzle_result.dart';
 import 'package:match_iq/features/game/data/animal_levels.dart';
 import 'package:match_iq/features/game/data/animal_relationships.dart';
 import 'package:match_iq/features/game/data/nature_levels.dart';
 import 'package:match_iq/features/game/data/nature_relationships.dart';
+import 'package:match_iq/features/game/data/themed_level_builder.dart';
 import 'package:match_iq/features/game/domain/models/board_position.dart';
 import 'package:match_iq/features/game/domain/models/game_level.dart';
 import 'package:match_iq/features/game/domain/models/game_path.dart';
@@ -14,6 +18,8 @@ import 'package:match_iq/features/game/domain/models/learning_relationship.dart'
 import 'package:match_iq/features/game/domain/models/level_pair_placement.dart';
 import 'package:match_iq/features/game/presentation/controllers/game_controller.dart';
 import 'package:match_iq/features/themes/data/theme_catalog.dart';
+import 'package:match_iq/features/themes/domain/app_progress_data.dart';
+import 'package:match_iq/features/themes/domain/theme_progress.dart';
 import 'package:match_iq/features/themes/presentation/controllers/app_progress_controller.dart';
 
 void main() {
@@ -141,6 +147,49 @@ void main() {
     });
   });
 
+  group('DailyPuzzleCatalog', () {
+    test('rotates available themes with deterministic recipes', () {
+      final themes = [ThemeCatalog.natureWorld, ThemeCatalog.animalWorld];
+
+      final firstDay = DailyPuzzleCatalog.challengeForDate(
+        themes: themes,
+        date: DateTime(2026),
+      );
+      final secondDay = DailyPuzzleCatalog.challengeForDate(
+        themes: themes,
+        date: DateTime(2026, 1, 2),
+      );
+      final fifthDay = DailyPuzzleCatalog.challengeForDate(
+        themes: themes,
+        date: DateTime(2026, 1, 5),
+      );
+
+      expect(firstDay.theme.id, ThemeCatalog.natureThemeId);
+      expect(firstDay.difficulty, DailyPuzzleDifficulty.easy);
+      expect(firstDay.modifier, DailyPuzzleModifier.steady);
+      expect(secondDay.theme.id, ThemeCatalog.animalThemeId);
+      expect(fifthDay.difficulty, DailyPuzzleDifficulty.medium);
+      expect(fifthDay.modifier, DailyPuzzleModifier.longRoute);
+    });
+
+    test('daily levels validate across rotating themes', () {
+      final themes = [ThemeCatalog.natureWorld, ThemeCatalog.animalWorld];
+
+      for (var offset = 0; offset < 42; offset += 1) {
+        final challenge = DailyPuzzleCatalog.challengeForDate(
+          themes: themes,
+          date: DateTime(2026).add(Duration(days: offset)),
+        );
+
+        expect(
+          validateThemedLevelSolutions(challenge.level),
+          isEmpty,
+          reason: 'Daily ${challenge.dateKey} should be solvable.',
+        );
+      }
+    });
+  });
+
   group('AppProgressController', () {
     test(
       'first launch defaults to Nature World and level 1 unlocked',
@@ -221,6 +270,150 @@ void main() {
       await restored.load();
 
       expect(restored.activeTheme.id, ThemeCatalog.animalThemeId);
+    });
+
+    test('solution path visibility persists', () async {
+      final store = MemoryProgressStore();
+      final controller = _progressController(store);
+
+      await controller.load();
+      expect(controller.showSolutionPaths, isFalse);
+
+      await controller.setShowSolutionPaths(true);
+
+      final restored = _progressController(store);
+      await restored.load();
+
+      expect(restored.showSolutionPaths, isTrue);
+      expect(
+        AppProgressData.fromJson(restored.data.toJson()).showSolutionPaths,
+        isTrue,
+      );
+    });
+
+    test(
+      'daily puzzle completion persists without changing continue level',
+      () async {
+        final controller = _progressController(
+          MemoryProgressStore(
+            const AppProgressData(
+              activeThemeId: 'nature',
+              lastPlayedThemeId: null,
+              lastPlayedLevelNumber: null,
+              hasSeenHome: true,
+              themes: {
+                'nature': ThemeProgress(highestUnlockedLevel: 3, levels: {}),
+                'animals': ThemeProgress.initial(),
+              },
+            ),
+          ),
+        );
+        await controller.load();
+        await controller.recordLevelOpened(
+          themeId: ThemeCatalog.natureThemeId,
+          levelNumber: 3,
+        );
+
+        await controller.completeDailyPuzzle(
+          dateKey: '2026-07-22',
+          themeId: ThemeCatalog.natureThemeId,
+          levelNumber: 5,
+          earnedStars: 2,
+          moves: 8,
+        );
+
+        final dailyResult = controller.dailyPuzzleResult(
+          date: DateTime(2026, 7, 22),
+        );
+        expect(dailyResult.completed, isTrue);
+        expect(dailyResult.stars, 2);
+        expect(dailyResult.bestMoves, 8);
+        expect(controller.continueLevelNumber(), 3);
+      },
+    );
+
+    test('daily replay result keeps best stars and moves', () async {
+      final controller = _progressController();
+      await controller.load();
+
+      await controller.completeDailyPuzzle(
+        dateKey: '2026-07-22',
+        themeId: ThemeCatalog.natureThemeId,
+        levelNumber: 5,
+        earnedStars: 3,
+        moves: 4,
+      );
+      await controller.completeDailyPuzzle(
+        dateKey: '2026-07-22',
+        themeId: ThemeCatalog.natureThemeId,
+        levelNumber: 5,
+        earnedStars: 1,
+        moves: 10,
+      );
+
+      final result = controller.dailyPuzzleResult(date: DateTime(2026, 7, 22));
+      expect(result.stars, 3);
+      expect(result.moves, 10);
+      expect(result.bestMoves, 4);
+    });
+
+    test('daily history reports solved days and streaks', () async {
+      final controller = _progressController(
+        MemoryProgressStore(
+          const AppProgressData(
+            activeThemeId: 'nature',
+            lastPlayedThemeId: null,
+            lastPlayedLevelNumber: null,
+            hasSeenHome: true,
+            themes: {
+              'nature': ThemeProgress.initial(),
+              'animals': ThemeProgress.initial(),
+            },
+            dailyPuzzles: {
+              '2026-07-20': DailyPuzzleResult(
+                dateKey: '2026-07-20',
+                themeId: 'nature',
+                levelNumber: 1,
+                completed: true,
+                stars: 2,
+                moves: 5,
+                bestMoves: 5,
+              ),
+              '2026-07-21': DailyPuzzleResult(
+                dateKey: '2026-07-21',
+                themeId: 'animals',
+                levelNumber: 2,
+                completed: true,
+                stars: 3,
+                moves: 4,
+                bestMoves: 4,
+              ),
+              '2026-07-22': DailyPuzzleResult(
+                dateKey: '2026-07-22',
+                themeId: 'nature',
+                levelNumber: 3,
+                completed: true,
+                stars: 1,
+                moves: 8,
+                bestMoves: 8,
+              ),
+            },
+          ),
+        ),
+      );
+
+      await controller.load();
+
+      final history = controller.dailyPuzzleHistory(
+        days: 3,
+        today: DateTime(2026, 7, 22),
+      );
+      expect(history, hasLength(3));
+      expect(history.first.dateKey, '2026-07-22');
+      expect(history.first.isCompleted, isTrue);
+      expect(history.last.dateKey, '2026-07-20');
+      expect(controller.dailyStreak(today: DateTime(2026, 7, 22)), 3);
+      expect(controller.bestDailyStreak(), 3);
     });
   });
 

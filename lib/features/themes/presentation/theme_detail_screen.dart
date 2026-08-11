@@ -49,8 +49,10 @@ class ThemeDetailScreen extends StatelessWidget {
                       ),
                       const Spacer(),
                       IconButton.filledTonal(
-                        onPressed: () {},
+                        onPressed: () =>
+                            Navigator.of(context).pushNamed(AppRoutes.settings),
                         icon: const Icon(Icons.settings_rounded),
+                        tooltip: 'Settings',
                       ),
                     ],
                   ),

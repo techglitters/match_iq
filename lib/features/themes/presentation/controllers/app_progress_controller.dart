@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/persistence/progress_store.dart';
+import '../../../daily/data/daily_puzzle_catalog.dart';
+import '../../../daily/domain/daily_puzzle_challenge.dart';
+import '../../../daily/domain/daily_puzzle_history_entry.dart';
+import '../../../daily/domain/daily_puzzle_result.dart';
 import '../../data/theme_catalog.dart';
 import '../../domain/app_progress_data.dart';
 import '../../domain/game_theme.dart';
@@ -23,6 +27,8 @@ class AppProgressController extends ChangeNotifier {
   bool get isLoaded => _isLoaded;
 
   AppProgressData get data => _data;
+
+  bool get showSolutionPaths => _data.showSolutionPaths;
 
   GameTheme get activeTheme {
     return themeById(_data.activeThemeId) ?? ThemeCatalog.natureWorld;
@@ -56,6 +62,96 @@ class AppProgressController extends ChangeNotifier {
 
   int completedLevelCount(String themeId) {
     return progressForTheme(themeId).completedLevelCount;
+  }
+
+  String dailyPuzzleDateKey([DateTime? date]) {
+    return DailyPuzzleCatalog.dateKey(date);
+  }
+
+  DailyPuzzleChallenge dailyPuzzleChallenge({DateTime? date}) {
+    return DailyPuzzleCatalog.challengeForDate(themes: themes, date: date);
+  }
+
+  int dailyPuzzleLevelNumber({DateTime? date, String? themeId}) {
+    if (themeId == null) {
+      return dailyPuzzleChallenge(date: date).levelNumber;
+    }
+
+    final theme = themeById(themeId) ?? ThemeCatalog.natureWorld;
+    return DailyPuzzleCatalog.levelNumberForDate(
+      date ?? DateTime.now(),
+      theme.levels.length,
+    );
+  }
+
+  DailyPuzzleResult dailyPuzzleResult({DateTime? date, String? themeId}) {
+    final dateKey = dailyPuzzleDateKey(date);
+    final challenge = themeId == null ? dailyPuzzleChallenge(date: date) : null;
+    final resolvedThemeId = themeId ?? challenge!.theme.id;
+    final levelNumber =
+        challenge?.levelNumber ??
+        dailyPuzzleLevelNumber(date: date, themeId: resolvedThemeId);
+    return _data.dailyPuzzles[dateKey] ??
+        DailyPuzzleResult.empty(
+          dateKey: dateKey,
+          themeId: resolvedThemeId,
+          levelNumber: levelNumber,
+        );
+  }
+
+  List<DailyPuzzleHistoryEntry> dailyPuzzleHistory({
+    int days = 7,
+    DateTime? today,
+  }) {
+    final anchor = _localDate(today ?? DateTime.now());
+    return List<DailyPuzzleHistoryEntry>.unmodifiable([
+      for (var index = 0; index < days; index += 1)
+        _dailyPuzzleHistoryEntry(
+          date: anchor.subtract(Duration(days: index)),
+          isToday: index == 0,
+        ),
+    ]);
+  }
+
+  int dailyStreak({DateTime? today}) {
+    var cursor = _localDate(today ?? DateTime.now());
+    if (!_isDailyCompleted(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+
+    var count = 0;
+    while (_isDailyCompleted(cursor)) {
+      count += 1;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return count;
+  }
+
+  int bestDailyStreak() {
+    final completedDates = [
+      for (final result in _data.dailyPuzzles.values)
+        if (result.completed) DailyPuzzleCatalog.parseDateKey(result.dateKey),
+    ].whereType<DateTime>().toList()..sort();
+
+    var best = 0;
+    var current = 0;
+    DateTime? previous;
+
+    for (final date in completedDates) {
+      if (previous == null || date.difference(previous).inDays == 1) {
+        current += 1;
+      } else if (date.difference(previous).inDays == 0) {
+        continue;
+      } else {
+        current = 1;
+      }
+      if (current > best) {
+        best = current;
+      }
+      previous = date;
+    }
+
+    return best;
   }
 
   int continueLevelNumber() {
@@ -101,6 +197,14 @@ class AppProgressController extends ChangeNotifier {
       return;
     }
     _data = _data.copyWith(hasSeenHome: true);
+    await _saveAndNotify();
+  }
+
+  Future<void> setShowSolutionPaths(bool value) async {
+    if (_data.showSolutionPaths == value) {
+      return;
+    }
+    _data = _data.copyWith(showSolutionPaths: value);
     await _saveAndNotify();
   }
 
@@ -174,8 +278,76 @@ class AppProgressController extends ChangeNotifier {
     );
   }
 
+  Future<LevelCompletionResult> completeDailyPuzzle({
+    required String dateKey,
+    required String themeId,
+    required int levelNumber,
+    required int earnedStars,
+    required int moves,
+  }) async {
+    final currentResult =
+        _data.dailyPuzzles[dateKey] ??
+        DailyPuzzleResult.empty(
+          dateKey: dateKey,
+          themeId: themeId,
+          levelNumber: levelNumber,
+        );
+    final savedResult = currentResult.complete(
+      earnedStars: earnedStars,
+      moves: moves,
+    );
+    final dailyPuzzles = Map<String, DailyPuzzleResult>.of(_data.dailyPuzzles)
+      ..[dateKey] = savedResult;
+
+    _data = _data.copyWith(
+      activeThemeId: themeId,
+      dailyPuzzles: Map<String, DailyPuzzleResult>.unmodifiable(dailyPuzzles),
+    );
+
+    await _saveAndNotify();
+
+    return LevelCompletionResult(
+      levelNumber: levelNumber,
+      earnedStars: earnedStars,
+      savedStars: savedResult.stars,
+      moves: moves,
+      bestMoves: savedResult.bestMoves ?? moves,
+      unlockedLevel: levelNumber,
+      isThemeComplete: false,
+    );
+  }
+
   Future<void> _saveAndNotify() async {
     await _store.save(_data);
     notifyListeners();
+  }
+
+  DailyPuzzleHistoryEntry _dailyPuzzleHistoryEntry({
+    required DateTime date,
+    required bool isToday,
+  }) {
+    final challenge = dailyPuzzleChallenge(date: date);
+    final result =
+        _data.dailyPuzzles[challenge.dateKey] ??
+        DailyPuzzleResult.empty(
+          dateKey: challenge.dateKey,
+          themeId: challenge.theme.id,
+          levelNumber: challenge.levelNumber,
+        );
+
+    return DailyPuzzleHistoryEntry(
+      date: date,
+      challenge: challenge,
+      result: result,
+      isToday: isToday,
+    );
+  }
+
+  bool _isDailyCompleted(DateTime date) {
+    return _data.dailyPuzzles[dailyPuzzleDateKey(date)]?.completed ?? false;
+  }
+
+  DateTime _localDate(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
   }
 }

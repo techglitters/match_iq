@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../features/daily/data/daily_puzzle_catalog.dart';
+import '../features/daily/presentation/daily_history_screen.dart';
 import '../features/game/data/themed_level_builder.dart';
 import '../features/game/presentation/controllers/game_controller.dart';
 import '../features/game/presentation/screens/game_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/level_map/presentation/level_map_screen.dart';
+import '../features/settings/presentation/settings_screen.dart';
 import '../features/splash/presentation/splash_screen.dart';
 import '../features/themes/data/theme_catalog.dart';
+import '../features/themes/domain/game_theme.dart';
 import '../features/themes/presentation/theme_detail_screen.dart';
 import '../features/themes/presentation/theme_selection_screen.dart';
 
@@ -17,8 +21,12 @@ class AppRoutes {
   static const splash = '/';
   static const home = '/home';
   static const themes = '/themes';
+  static const settings = '/settings';
+  static const dailyPuzzle = '/daily';
+  static const dailyHistory = '/daily/history';
   static const natureTheme = '/theme/nature';
   static const natureLevels = '/theme/nature/levels';
+  static const _dailyPrefix = '/daily/';
   static const _themePrefix = '/theme/';
 
   static String themeDetail(String themeId) {
@@ -37,7 +45,19 @@ class AppRoutes {
     return themeLevel(ThemeCatalog.natureThemeId, levelNumber);
   }
 
+  static String dailyReplay(String dateKey) {
+    return '$_dailyPrefix$dateKey/replay';
+  }
+
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    final dailyReplayDateKey = _parseDailyReplay(settings.name);
+    if (dailyReplayDateKey != null) {
+      return _route(
+        _DailyPuzzleScope(dateKey: dailyReplayDateKey, isReplay: true),
+        settings,
+      );
+    }
+
     final levelRoute = _parseThemeLevel(settings.name);
     if (levelRoute != null) {
       return _route(
@@ -60,6 +80,9 @@ class AppRoutes {
       splash => _route(const SplashScreen(), settings),
       home => _route(const HomeScreen(), settings),
       themes => _route(const ThemeSelectionScreen(), settings),
+      AppRoutes.settings => _route(const SettingsScreen(), settings),
+      dailyPuzzle => _route(const _DailyPuzzleScope(), settings),
+      dailyHistory => _route(const DailyHistoryScreen(), settings),
       _ => _route(const HomeScreen(), settings),
     };
   }
@@ -135,6 +158,59 @@ class AppRoutes {
 
     final theme = ThemeCatalog.themeById(themeId);
     return theme?.id;
+  }
+
+  static String? _parseDailyReplay(String? routeName) {
+    if (routeName == null ||
+        !routeName.startsWith(_dailyPrefix) ||
+        !routeName.endsWith('/replay')) {
+      return null;
+    }
+
+    final dateKey = routeName
+        .substring(_dailyPrefix.length, routeName.length - '/replay'.length)
+        .trim();
+    if (DailyPuzzleCatalog.parseDateKey(dateKey) == null) {
+      return null;
+    }
+    return dateKey;
+  }
+}
+
+class _DailyPuzzleScope extends StatelessWidget {
+  const _DailyPuzzleScope({this.dateKey, this.isReplay = false});
+
+  final String? dateKey;
+  final bool isReplay;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = ThemeBoardProfile.forSize(MediaQuery.sizeOf(context));
+    final date =
+        DailyPuzzleCatalog.parseDateKey(dateKey ?? '') ?? DateTime.now();
+    final challenge = DailyPuzzleCatalog.challengeForDate(
+      themes: _dailyThemesForProfile(profile),
+      date: date,
+    );
+
+    return ChangeNotifierProvider(
+      create: (_) => GameController(initialLevel: challenge.level),
+      child: GameScreen(
+        themeId: challenge.theme.id,
+        levelNumber: challenge.levelNumber,
+        isDailyPuzzle: true,
+        isDailyReplay: isReplay,
+        dailyPuzzleId: challenge.dateKey,
+        dailySubtitle: challenge.subtitle,
+      ),
+    );
+  }
+
+  List<GameTheme> _dailyThemesForProfile(ThemeBoardProfile profile) {
+    return [
+      ThemeCatalog.natureWorldFor(profile: profile),
+      ThemeCatalog.animalWorldFor(profile: profile),
+    ];
   }
 }
 

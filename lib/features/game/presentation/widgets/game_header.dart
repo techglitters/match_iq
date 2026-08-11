@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
 
 class GameHeader extends StatelessWidget {
-  const GameHeader({required this.controller, required this.onBack, super.key});
+  const GameHeader({
+    required this.controller,
+    required this.onBack,
+    this.subtitle,
+    super.key,
+  });
 
   final GameController controller;
   final VoidCallback onBack;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +42,9 @@ class GameHeader extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Connect each pair',
+                subtitle ?? 'Connect each pair',
                 style: Theme.of(context).textTheme.bodyMedium,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

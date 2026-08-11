@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/game_constants.dart';
+import '../../../themes/presentation/controllers/app_progress_controller.dart';
 import '../../domain/models/board_position.dart';
 import '../../domain/models/game_level.dart';
 import '../../domain/models/game_path.dart';
@@ -24,6 +25,8 @@ class GameBoard extends StatefulWidget {
 enum _BoardFeedbackType { none, successWave, wrongShimmer }
 
 class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
+  static const double _boardCornerRadius = 10;
+
   late final AnimationController _rollbackController;
   late final AnimationController _feedbackController;
   BoardPosition? _lastPanPosition;
@@ -70,6 +73,9 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<GameController>();
+    final showSolutionPaths = context
+        .watch<AppProgressController>()
+        .showSolutionPaths;
     final level = controller.level;
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -81,7 +87,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
         return DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.86),
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(_boardCornerRadius),
             border: Border.all(
               color: colorScheme.primary.withValues(alpha: 0.16),
               width: 2,
@@ -95,7 +101,7 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(_boardCornerRadius),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -124,6 +130,16 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
                   ),
                 CustomPaint(
                   painter: GamePathPainter(
+                    solutionPaths: showSolutionPaths
+                        ? [
+                            for (final solution in level.solutions)
+                              GamePath(
+                                relationshipId: solution.relationshipId,
+                                cells: solution.cells,
+                                isComplete: true,
+                              ),
+                          ]
+                        : const <GamePath>[],
                     completedPaths: controller.completedPaths.values.toList(),
                     activePath: controller.activeGamePath,
                     rollbackPath: _rollbackPath,

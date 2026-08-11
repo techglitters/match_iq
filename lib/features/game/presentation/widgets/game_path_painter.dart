@@ -15,6 +15,7 @@ class SplitRollbackPath {
 
 class GamePathPainter extends CustomPainter {
   const GamePathPainter({
+    required this.solutionPaths,
     required this.completedPaths,
     required this.activePath,
     required this.rollbackPath,
@@ -28,6 +29,7 @@ class GamePathPainter extends CustomPainter {
     required this.endpointPositions,
   });
 
+  final List<GamePath> solutionPaths;
   final List<GamePath> completedPaths;
   final GamePath? activePath;
   final GamePath? rollbackPath;
@@ -42,6 +44,16 @@ class GamePathPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    for (final path in solutionPaths) {
+      _drawPath(
+        canvas,
+        size,
+        path,
+        GameConstants.colorForRelationship(path.relationshipId),
+        opacity: 0.22,
+      );
+    }
+
     for (final path in completedPaths) {
       _drawPath(
         canvas,
@@ -510,7 +522,8 @@ class GamePathPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant GamePathPainter oldDelegate) {
-    return oldDelegate.completedPaths != completedPaths ||
+    return oldDelegate.solutionPaths != solutionPaths ||
+        oldDelegate.completedPaths != completedPaths ||
         oldDelegate.activePath != activePath ||
         oldDelegate.rollbackPath != rollbackPath ||
         oldDelegate.splitRollbackPath != splitRollbackPath ||

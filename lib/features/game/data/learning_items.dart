@@ -39,10 +39,22 @@ class LearningItems {
     icon: Icons.water_drop,
   );
 
+  static const rainbow = LearningItem(
+    id: 'rainbow',
+    name: 'Rainbow',
+    icon: Icons.filter_vintage,
+  );
+
   static const sun = LearningItem(
     id: 'sun',
     name: 'Sun',
     icon: Icons.wb_sunny_rounded,
+  );
+
+  static const day = LearningItem(
+    id: 'day',
+    name: 'Day',
+    icon: Icons.light_mode,
   );
 
   static const plant = LearningItem(
@@ -73,6 +85,12 @@ class LearningItems {
     id: 'river',
     name: 'River',
     icon: Icons.water,
+  );
+
+  static const ocean = LearningItem(
+    id: 'ocean',
+    name: 'Ocean',
+    icon: Icons.waves,
   );
 
   static const leaf = LearningItem(id: 'leaf', name: 'Leaf', icon: Icons.spa);

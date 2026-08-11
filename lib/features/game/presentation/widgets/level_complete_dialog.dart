@@ -9,6 +9,10 @@ class LevelCompleteDialog extends StatelessWidget {
     required this.onPlayAgain,
     required this.onLevelMap,
     required this.onHome,
+    this.isDailyPuzzle = false,
+    this.isDailyReplay = false,
+    this.dailySubtitle,
+    this.showLevelMapAction = true,
     this.onNextLevel,
     super.key,
   });
@@ -18,6 +22,10 @@ class LevelCompleteDialog extends StatelessWidget {
   final VoidCallback onPlayAgain;
   final VoidCallback onLevelMap;
   final VoidCallback onHome;
+  final bool isDailyPuzzle;
+  final bool isDailyReplay;
+  final String? dailySubtitle;
+  final bool showLevelMapAction;
   final VoidCallback? onNextLevel;
 
   @override
@@ -30,15 +38,21 @@ class LevelCompleteDialog extends StatelessWidget {
         color: colorScheme.primary,
         size: 42,
       ),
-      title: Text(
-        result.isThemeComplete ? '$themeName Complete!' : 'Wonderful!',
-      ),
+      title: Text(_titleText),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _StarRow(stars: result.earnedStars),
           const SizedBox(height: 14),
-          const Text('You connected all pairs!', textAlign: TextAlign.center),
+          Text(_bodyText, textAlign: TextAlign.center),
+          if (dailySubtitle != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              dailySubtitle!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 10),
           Text('Moves: ${result.moves}'),
           Text('Best: ${result.bestMoves}'),
@@ -51,11 +65,12 @@ class LevelCompleteDialog extends StatelessWidget {
           icon: const Icon(Icons.home_rounded),
           label: const Text('Home'),
         ),
-        TextButton.icon(
-          onPressed: onLevelMap,
-          icon: const Icon(Icons.map_rounded),
-          label: const Text('Map'),
-        ),
+        if (showLevelMapAction)
+          TextButton.icon(
+            onPressed: onLevelMap,
+            icon: const Icon(Icons.map_rounded),
+            label: const Text('Map'),
+          ),
         FilledButton.icon(
           onPressed: onNextLevel ?? onPlayAgain,
           icon: Icon(
@@ -67,6 +82,26 @@ class LevelCompleteDialog extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String get _titleText {
+    if (isDailyReplay) {
+      return 'Replay Complete!';
+    }
+    if (isDailyPuzzle) {
+      return 'Daily Complete!';
+    }
+    return result.isThemeComplete ? '$themeName Complete!' : 'Wonderful!';
+  }
+
+  String get _bodyText {
+    if (isDailyReplay) {
+      return 'Nice practice run. Your saved daily score stayed unchanged.';
+    }
+    if (isDailyPuzzle) {
+      return "You solved today's puzzle. Come back tomorrow for a new one.";
+    }
+    return 'You connected all pairs!';
   }
 }
 
