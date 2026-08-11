@@ -461,6 +461,24 @@ class _LevelBlueprint {
   final int columns;
   final int pairCount;
 
+  static const _boardShapeRecipe = <_BoardShape>[
+    _BoardShape(rows: 5, columns: 5),
+    _BoardShape(rows: 6, columns: 6),
+    _BoardShape(rows: 6, columns: 6),
+    _BoardShape(rows: 7, columns: 6),
+    _BoardShape(rows: 8, columns: 6),
+    _BoardShape(rows: 8, columns: 7),
+    _BoardShape(rows: 9, columns: 7),
+    _BoardShape(rows: 10, columns: 7),
+    _BoardShape(rows: 10, columns: 8),
+    _BoardShape(rows: 11, columns: 8),
+    _BoardShape(rows: 12, columns: 8),
+    _BoardShape(rows: 12, columns: 8),
+    _BoardShape(rows: 13, columns: 8),
+    _BoardShape(rows: 13, columns: 8),
+    _BoardShape(rows: 14, columns: 8),
+  ];
+
   factory _LevelBlueprint.forLevel({
     required int levelNumber,
     required int totalLevelCount,
@@ -470,15 +488,10 @@ class _LevelBlueprint {
     final progress = totalLevelCount <= 1
         ? 1.0
         : (levelNumber - 1) / (totalLevelCount - 1);
-    final rows = _scaledValue(
-      start: 5,
-      end: profile.maxRows,
-      progress: progress,
-    );
-    final columns = _scaledValue(
-      start: 5,
-      end: profile.maxColumns,
-      progress: progress,
+    final boardShape = _boardShapeForLevel(
+      levelNumber: levelNumber,
+      totalLevelCount: totalLevelCount,
+      profile: profile,
     );
     final pairCount = _scaledValue(
       start: 3,
@@ -488,10 +501,51 @@ class _LevelBlueprint {
 
     return _LevelBlueprint(
       levelNumber: levelNumber,
-      rows: rows,
-      columns: columns,
-      pairCount: math.min(pairCount, rows * columns ~/ 6),
+      rows: boardShape.rows,
+      columns: boardShape.columns,
+      pairCount: math.min(pairCount, boardShape.rows * boardShape.columns ~/ 6),
     );
+  }
+
+  static _BoardShape _boardShapeForLevel({
+    required int levelNumber,
+    required int totalLevelCount,
+    required ThemeBoardProfile profile,
+  }) {
+    final lastRecipeIndex = _boardShapeRecipe.length - 1;
+    final recipeIndex = totalLevelCount <= 1
+        ? lastRecipeIndex
+        : ((levelNumber - 1) * lastRecipeIndex / (totalLevelCount - 1))
+              .round()
+              .clamp(0, lastRecipeIndex);
+    final recipe = _boardShapeRecipe[recipeIndex];
+
+    if (recipe.rows == recipe.columns) {
+      final squareLimit = math.min(profile.maxRows, profile.maxColumns);
+      final size = recipe.rows.clamp(5, squareLimit);
+      return _BoardShape(rows: size, columns: size);
+    }
+
+    return _BoardShape(
+      rows: _scaleRecipeDimension(
+        value: recipe.rows,
+        recipeEnd: 14,
+        profileEnd: profile.maxRows,
+      ),
+      columns: recipe.columns.clamp(5, profile.maxColumns),
+    );
+  }
+
+  static int _scaleRecipeDimension({
+    required int value,
+    required int recipeEnd,
+    required int profileEnd,
+  }) {
+    if (recipeEnd <= 5 || profileEnd <= 5) {
+      return 5;
+    }
+    final progress = (value - 5) / (recipeEnd - 5);
+    return _scaledValue(start: 5, end: profileEnd, progress: progress);
   }
 
   static int _scaledValue({
@@ -501,4 +555,11 @@ class _LevelBlueprint {
   }) {
     return (start + (end - start) * progress).round().clamp(start, end);
   }
+}
+
+class _BoardShape {
+  const _BoardShape({required this.rows, required this.columns});
+
+  final int rows;
+  final int columns;
 }

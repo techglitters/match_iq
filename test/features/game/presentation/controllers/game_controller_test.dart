@@ -36,6 +36,54 @@ void main() {
       expect(levels.last.pairs, hasLength(10));
     });
 
+    test('progresses from square to portrait board shapes', () {
+      final dimensions = [
+        for (final level in createNatureLevels())
+          (rows: level.rows, columns: level.columns),
+      ];
+
+      expect(dimensions, [
+        (rows: 5, columns: 5),
+        (rows: 6, columns: 6),
+        (rows: 6, columns: 6),
+        (rows: 7, columns: 6),
+        (rows: 8, columns: 6),
+        (rows: 8, columns: 7),
+        (rows: 9, columns: 7),
+        (rows: 10, columns: 7),
+        (rows: 10, columns: 8),
+        (rows: 11, columns: 8),
+        (rows: 12, columns: 8),
+        (rows: 12, columns: 8),
+        (rows: 13, columns: 8),
+        (rows: 13, columns: 8),
+        (rows: 14, columns: 8),
+      ]);
+    });
+
+    test('compact profiles preserve square openings and safe proportions', () {
+      const compactProfile = ThemeBoardProfile(
+        maxRows: 10,
+        maxColumns: 6,
+        maxPairs: 7,
+      );
+      final levels = createNatureLevels(profile: compactProfile);
+
+      expect(levels.first.rows, levels.first.columns);
+      expect(levels[1].rows, levels[1].columns);
+      expect(levels[2].rows, levels[2].columns);
+      expect(levels.last.rows, 10);
+      expect(levels.last.columns, 6);
+
+      var previousCellCount = 0;
+      for (final level in levels) {
+        final cellCount = level.rows * level.columns;
+        expect(cellCount, greaterThanOrEqualTo(previousCellCount));
+        expect(level.rows / level.columns, lessThanOrEqualTo(1.75));
+        previousCellCount = cellCount;
+      }
+    });
+
     test('uses nature-only relationships', () {
       for (final relationship in NatureRelationships.all) {
         expect(relationship.category, RelationshipCategory.nature);
