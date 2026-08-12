@@ -4,6 +4,7 @@ import 'package:match_iq/app/app.dart';
 import 'package:match_iq/core/constants/game_constants.dart';
 import 'package:match_iq/core/persistence/memory_progress_store.dart';
 import 'package:match_iq/features/game/presentation/widgets/game_path_painter.dart';
+import 'package:match_iq/features/game/presentation/widgets/matched_pairs_tray.dart';
 import 'package:match_iq/features/themes/domain/app_progress_data.dart';
 import 'package:match_iq/features/themes/domain/theme_progress.dart';
 
@@ -34,7 +35,10 @@ void main() {
 
     expect(find.text('Nature 1'), findsOneWidget);
     expect(find.text('Pairs'), findsOneWidget);
+    expect(find.text('Board'), findsOneWidget);
+    expect(find.text('0%'), findsOneWidget);
     expect(find.text('Moves'), findsOneWidget);
+    expect(find.byType(MatchedPairsTray), findsNothing);
   });
 
   testWidgets('Continue opens the last played level directly', (
@@ -145,6 +149,6 @@ void main() {
     final pathPainter = pathPaint.painter! as GamePathPainter;
 
     expect(pathPainter.solutionPaths, isNotEmpty);
-    expect(pathPainter.solutionPaths, hasLength(3));
+    expect(pathPainter.solutionPaths, hasLength(4));
   });
 }

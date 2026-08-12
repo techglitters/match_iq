@@ -104,37 +104,35 @@ class _LevelMapScreenState extends State<LevelMapScreen> {
                               painter: LevelPathPainter(points: points),
                             ),
                           ),
-                          for (final level in theme.levels)
+                          for (
+                            var levelNumber = 1;
+                            levelNumber <= theme.levels.length;
+                            levelNumber += 1
+                          )
                             _PositionedLevelNode(
-                              levelNumber: level.levelNumber,
+                              levelNumber: levelNumber,
                               width: constraints.maxWidth,
                               showLockIcon:
                                   theme.id != ThemeCatalog.natureThemeId,
                               visual: theme.id == ThemeCatalog.natureThemeId
-                                  ? _natureVisualFor(level.levelNumber)
+                                  ? _natureVisualFor(levelNumber)
                                   : null,
                               status: _statusFor(
-                                progress
-                                    .levelProgress(level.levelNumber)
-                                    .completed,
-                                progress.isUnlocked(level.levelNumber),
-                                progress.highestUnlockedLevel ==
-                                    level.levelNumber,
+                                progress.levelProgress(levelNumber).completed,
+                                progress.isUnlocked(levelNumber),
+                                progress.highestUnlockedLevel == levelNumber,
                               ),
-                              stars: progress
-                                  .levelProgress(level.levelNumber)
-                                  .stars,
-                              onTap: progress.isUnlocked(level.levelNumber)
+                              stars: progress.levelProgress(levelNumber).stars,
+                              onTap: progress.isUnlocked(levelNumber)
                                   ? () => Navigator.of(context).pushNamed(
                                       AppRoutes.themeLevel(
                                         theme.id,
-                                        level.levelNumber,
+                                        levelNumber,
                                       ),
                                     )
                                   : null,
                               isCurrent:
-                                  progress.highestUnlockedLevel ==
-                                  level.levelNumber,
+                                  progress.highestUnlockedLevel == levelNumber,
                             ),
                         ],
                       ),
@@ -265,22 +263,27 @@ class _PositionedLevelNode extends StatelessWidget {
 }
 
 LevelNodeVisual _natureVisualFor(int levelNumber) {
-  const visuals = [
-    LevelNodeVisual(icon: Icons.grass, label: 'Seed'),
-    LevelNodeVisual(icon: Icons.eco, label: 'Tiny sprout'),
-    LevelNodeVisual(icon: Icons.spa, label: 'First leaves'),
-    LevelNodeVisual(icon: Icons.eco, label: 'Seedling'),
-    LevelNodeVisual(icon: Icons.local_florist, label: 'Small bud'),
-    LevelNodeVisual(icon: Icons.local_florist, label: 'Flower'),
-    LevelNodeVisual(icon: Icons.yard, label: 'Garden patch'),
-    LevelNodeVisual(icon: Icons.spa, label: 'Growing leaves'),
-    LevelNodeVisual(icon: Icons.park, label: 'Young tree'),
-    LevelNodeVisual(icon: Icons.park, label: 'Tree'),
-    LevelNodeVisual(icon: Icons.apple, label: 'First fruit'),
-    LevelNodeVisual(icon: Icons.apple, label: 'Fruit tree'),
-    LevelNodeVisual(icon: Icons.yard, label: 'Orchard'),
-    LevelNodeVisual(icon: Icons.local_florist, label: 'Blooming garden'),
-    LevelNodeVisual(icon: Icons.apple, label: 'Harvest'),
+  const chapterVisuals = [
+    LevelNodeVisual(icon: Icons.grass, label: 'Seedbed'),
+    LevelNodeVisual(icon: Icons.eco, label: 'Sprout'),
+    LevelNodeVisual(icon: Icons.local_florist, label: 'Meadow'),
+    LevelNodeVisual(icon: Icons.yard, label: 'Garden'),
+    LevelNodeVisual(icon: Icons.park, label: 'Grove'),
+    LevelNodeVisual(icon: Icons.forest, label: 'Forest'),
+    LevelNodeVisual(icon: Icons.water, label: 'Wetlands'),
+    LevelNodeVisual(icon: Icons.landscape, label: 'Highlands'),
+    LevelNodeVisual(icon: Icons.public, label: 'Wilderness'),
+    LevelNodeVisual(icon: Icons.nature, label: 'Living world'),
   ];
-  return visuals[(levelNumber - 1).clamp(0, visuals.length - 1).toInt()];
+  final chapterIndex = ((levelNumber - 1) ~/ 10).clamp(
+    0,
+    chapterVisuals.length - 1,
+  );
+  if (levelNumber % 10 == 0) {
+    return LevelNodeVisual(
+      icon: Icons.emoji_events_rounded,
+      label: '${chapterVisuals[chapterIndex].label} challenge',
+    );
+  }
+  return chapterVisuals[chapterIndex];
 }

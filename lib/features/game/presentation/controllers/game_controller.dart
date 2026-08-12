@@ -47,6 +47,30 @@ class GameController extends ChangeNotifier {
 
   int get totalPairCount => level.pairs.length;
 
+  int get totalBoardCellCount => level.rows * level.columns;
+
+  bool get allPairsConnected => completedPaths.length == level.pairs.length;
+
+  Set<BoardPosition> get coveredPositions {
+    return {
+      for (final path in completedPaths.values) ...path.cells,
+      ...activePath,
+    };
+  }
+
+  int get coveredCellCount => coveredPositions.length;
+
+  int get remainingCellCount => totalBoardCellCount - coveredCellCount;
+
+  int get coveragePercent {
+    if (totalBoardCellCount == 0) {
+      return 0;
+    }
+    return coveredCellCount * 100 ~/ totalBoardCellCount;
+  }
+
+  bool get isBoardFilled => coveredCellCount == totalBoardCellCount;
+
   int get visibleLevelNumber => currentLevelIndex + 1;
 
   bool get hasNextLevel => currentLevelIndex < _maxLevelCount - 1;
@@ -377,7 +401,7 @@ class GameController extends ChangeNotifier {
   }
 
   bool checkLevelCompletion() {
-    isLevelComplete = completedPaths.length == level.pairs.length;
+    isLevelComplete = allPairsConnected && isBoardFilled;
     return isLevelComplete;
   }
 

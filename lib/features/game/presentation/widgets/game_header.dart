@@ -17,46 +17,74 @@ class GameHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final instruction =
+        controller.allPairsConnected && !controller.isBoardFilled
+        ? '${controller.remainingCellCount} cells still need a path'
+        : subtitle ?? 'Connect every pair and fill the board';
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        IconButton(
-          onPressed: onBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-          tooltip: 'Back',
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: 0.82),
-            foregroundColor: colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                controller.level.name,
-                style: Theme.of(context).textTheme.titleLarge,
-                overflow: TextOverflow.ellipsis,
+        Row(
+          children: [
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_rounded),
+              tooltip: 'Back',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.82),
+                foregroundColor: colorScheme.onSurface,
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle ?? 'Connect each pair',
-                style: Theme.of(context).textTheme.bodyMedium,
-                overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    controller.level.name,
+                    style: Theme.of(context).textTheme.titleLarge,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: Text(
+                      instruction,
+                      key: ValueKey<String>(instruction),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        _HeaderPill(
-          label: 'Pairs',
-          value:
-              '${controller.connectedPairCount}/${controller.totalPairCount}',
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _HeaderPill(
+                label: 'Pairs',
+                value:
+                    '${controller.connectedPairCount}/${controller.totalPairCount}',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _HeaderPill(
+                label: 'Board',
+                value: '${controller.coveragePercent}%',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _HeaderPill(label: 'Moves', value: '${controller.moves}'),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        _HeaderPill(label: 'Moves', value: '${controller.moves}'),
       ],
     );
   }
@@ -79,7 +107,7 @@ class _HeaderPill extends StatelessWidget {
         border: Border.all(color: colorScheme.primary.withValues(alpha: 0.14)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

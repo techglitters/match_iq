@@ -47,15 +47,22 @@ class AnimalLevels {
 
   static const totalLevelCount = 15;
 
+  static final Map<String, List<GameLevel>> _levelsByProfile = {};
+
   static final List<GameLevel> all = levelsFor(AnimalBoardProfile.large);
 
   static List<GameLevel> levelsFor(AnimalBoardProfile profile) {
-    return buildThemedLevels(
-      idPrefix: 'animals',
-      namePrefix: 'Animal',
-      relationships: AnimalRelationships.all,
-      totalLevelCount: totalLevelCount,
-      profile: profile,
+    final profileKey =
+        '${profile.maxRows}:${profile.maxColumns}:${profile.maxPairs}';
+    return _levelsByProfile.putIfAbsent(
+      profileKey,
+      () => buildThemedLevels(
+        idPrefix: 'animals',
+        namePrefix: 'Animal',
+        relationships: AnimalRelationships.all,
+        totalLevelCount: totalLevelCount,
+        profile: profile,
+      ),
     );
   }
 

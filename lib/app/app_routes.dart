@@ -239,8 +239,7 @@ class _ThemeGameScope extends StatelessWidget {
     final initialLevel = theme.levels[clampedLevelNumber - 1];
 
     return ChangeNotifierProvider(
-      create: (_) =>
-          GameController(initialLevel: initialLevel, levels: theme.levels),
+      create: (_) => GameController(initialLevel: initialLevel),
       child: GameScreen(
         themeId: theme.id,
         levelNumber: initialLevel.levelNumber,

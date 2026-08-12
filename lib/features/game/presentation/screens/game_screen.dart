@@ -9,7 +9,6 @@ import '../controllers/game_controller.dart';
 import '../widgets/game_board.dart';
 import '../widgets/game_header.dart';
 import '../widgets/level_complete_dialog.dart';
-import '../widgets/matched_pairs_tray.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
@@ -86,10 +85,6 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                   const SizedBox(height: 10),
                   Expanded(child: _BoardHost(controller: controller)),
-                  const SizedBox(height: 10),
-                  MatchedPairsTray(controller: controller),
-                  if (controller.completedPathOrder.isNotEmpty)
-                    const SizedBox(height: 10),
                 ],
               ),
             );

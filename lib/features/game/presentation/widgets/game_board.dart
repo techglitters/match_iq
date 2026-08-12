@@ -290,6 +290,19 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
         _cellCenter(pathBeforeFinish.cells.last, boardSize, level),
       );
       HapticFeedback.mediumImpact();
+      if (controller.allPairsConnected && !controller.isBoardFilled) {
+        final remainingCells = controller.remainingCellCount;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'All pairs match, but $remainingCells cells are empty. '
+                'Redraw a path to fill the board.',
+              ),
+            ),
+          );
+      }
     }
   }
 

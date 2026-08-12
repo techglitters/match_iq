@@ -24,41 +24,60 @@ import 'package:match_iq/features/themes/presentation/controllers/app_progress_c
 
 void main() {
   group('Nature levels', () {
-    test('contains exactly 15 deterministic levels', () {
+    test('contains exactly 20 deterministic levels', () {
       final levels = createNatureLevels();
 
-      expect(levels, hasLength(15));
-      expect(levels.first.rows, 5);
-      expect(levels.first.columns, 5);
-      expect(levels.first.pairs, hasLength(3));
-      expect(levels.last.rows, 14);
-      expect(levels.last.columns, 8);
+      expect(levels, hasLength(20));
+      expect(levels.first.rows, 6);
+      expect(levels.first.columns, 6);
+      expect(levels.first.pairs, hasLength(4));
+      for (final level in levels.where((level) => level.rows == 6)) {
+        expect(level.pairs.length, lessThanOrEqualTo(5));
+      }
+      expect(levels.last.rows, 10);
+      expect(levels.last.columns, 10);
       expect(levels.last.pairs, hasLength(10));
     });
 
-    test('progresses from square to portrait board shapes', () {
-      final dimensions = [
-        for (final level in createNatureLevels())
-          (rows: level.rows, columns: level.columns),
-      ];
+    test('uses two chapters with boss and recovery board rhythms', () {
+      final levels = createNatureLevels();
+      var previousBossCellCount = 0;
 
-      expect(dimensions, [
-        (rows: 5, columns: 5),
-        (rows: 6, columns: 6),
-        (rows: 6, columns: 6),
-        (rows: 7, columns: 6),
-        (rows: 8, columns: 6),
-        (rows: 8, columns: 7),
-        (rows: 9, columns: 7),
-        (rows: 10, columns: 7),
-        (rows: 10, columns: 8),
-        (rows: 11, columns: 8),
-        (rows: 12, columns: 8),
-        (rows: 12, columns: 8),
-        (rows: 13, columns: 8),
-        (rows: 13, columns: 8),
-        (rows: 14, columns: 8),
-      ]);
+      for (var chapter = 0; chapter < 2; chapter += 1) {
+        final recoveryLevel = levels[chapter * 10 + 7];
+        final bossLevel = levels[chapter * 10 + 9];
+        final bossCellCount = bossLevel.rows * bossLevel.columns;
+
+        expect(bossCellCount, greaterThanOrEqualTo(previousBossCellCount));
+        expect(
+          bossCellCount,
+          greaterThanOrEqualTo(recoveryLevel.rows * recoveryLevel.columns),
+        );
+        expect(bossLevel.pairs.length, greaterThan(recoveryLevel.pairs.length));
+        previousBossCellCount = bossCellCount;
+      }
+
+      expect((levels[9].rows, levels[9].columns), (9, 9));
+      expect((levels[19].rows, levels[19].columns), (10, 10));
+    });
+
+    test('sizes boards and pair territories as one shared recipe', () {
+      final levels = createNatureLevels();
+
+      for (final level in levels) {
+        final cellsPerPair = level.rows * level.columns / level.pairs.length;
+        expect(level.rows, level.columns);
+        expect(cellsPerPair, inInclusiveRange(6.0, 10.0));
+      }
+
+      expect(levels.first.pairs, hasLength(4));
+      expect(levels.first.rows, 6);
+      expect(levels[7].pairs.length, lessThan(levels[9].pairs.length));
+      expect(levels[7].rows, lessThan(levels[9].rows));
+      expect(levels[17].pairs.length, lessThan(levels[19].pairs.length));
+      expect(levels[17].rows, lessThan(levels[19].rows));
+      expect(levels.last.pairs, hasLength(10));
+      expect(levels.last.rows, 10);
     });
 
     test('compact profiles preserve square openings and safe proportions', () {
@@ -72,15 +91,272 @@ void main() {
       expect(levels.first.rows, levels.first.columns);
       expect(levels[1].rows, levels[1].columns);
       expect(levels[2].rows, levels[2].columns);
-      expect(levels.last.rows, 10);
-      expect(levels.last.columns, 6);
+      expect(levels.last.rows, 7);
+      expect(levels.last.columns, 7);
 
-      var previousCellCount = 0;
       for (final level in levels) {
-        final cellCount = level.rows * level.columns;
-        expect(cellCount, greaterThanOrEqualTo(previousCellCount));
-        expect(level.rows / level.columns, lessThanOrEqualTo(1.75));
-        previousCellCount = cellCount;
+        expect(level.rows, lessThanOrEqualTo(10));
+        expect(level.columns, lessThanOrEqualTo(10));
+        expect(level.rows / level.columns, inInclusiveRange(0.80, 1.25));
+      }
+    });
+
+    test('opening level uses the nested 6x6 full-board topology', () {
+      final level = createNatureLevel(levelNumber: 1);
+      final occupiedCells = <BoardPosition>{};
+
+      expect(level.rows, 6);
+      expect(level.columns, 6);
+      expect(level.solutions.map((solution) => solution.cells.length), [
+        8,
+        6,
+        12,
+        10,
+      ]);
+      expect(
+        level.pairs
+            .map((pair) => (pair.sourcePosition, pair.targetPosition))
+            .toList(),
+        const [
+          (BoardPosition(row: 2, column: 1), BoardPosition(row: 5, column: 5)),
+          (BoardPosition(row: 4, column: 5), BoardPosition(row: 2, column: 2)),
+          (BoardPosition(row: 0, column: 0), BoardPosition(row: 2, column: 3)),
+          (BoardPosition(row: 2, column: 4), BoardPosition(row: 5, column: 0)),
+        ],
+      );
+      for (final solution in level.solutions) {
+        for (final cell in solution.cells) {
+          expect(occupiedCells.add(cell), isTrue);
+        }
+      }
+      expect(occupiedCells, hasLength(36));
+    });
+
+    test('endpoint layouts vary across levels and themes', () {
+      final natureLevels = createNatureLevels();
+      final animalLevels = createAnimalLevels();
+      final natureSignatures = natureLevels.map(_endpointSignature).toSet();
+
+      expect(natureSignatures.length, greaterThanOrEqualTo(16));
+      expect(
+        _endpointSignature(natureLevels[9]),
+        isNot(_endpointSignature(animalLevels[9])),
+      );
+      expect(
+        _endpointSignature(createNatureLevel(levelNumber: 10)),
+        _endpointSignature(createNatureLevel(levelNumber: 10)),
+      );
+    });
+
+    test('later levels move endpoints inward and reduce corner dependence', () {
+      final levels = createNatureLevels();
+      final earlyInteriorRatio = _average(
+        levels.take(5).map(_interiorEndpointRatio),
+      );
+      final lateInteriorRatio = _average(
+        levels.skip(15).map(_interiorEndpointRatio),
+      );
+      final earlyCornerRatio = _average(
+        levels.take(5).map(_cornerEndpointRatio),
+      );
+      final lateCornerRatio = _average(
+        levels.skip(15).map(_cornerEndpointRatio),
+      );
+
+      expect(lateInteriorRatio, greaterThan(earlyInteriorRatio));
+      expect(lateInteriorRatio, greaterThanOrEqualTo(0.55));
+      expect(lateCornerRatio, lessThan(earlyCornerRatio));
+      expect(lateCornerRatio, lessThanOrEqualTo(0.15));
+    });
+
+    test('difficulty increases across early, middle, and late bands', () {
+      final levels = createNatureLevels();
+      final earlyScore = _average(
+        levels.take(5).map(scoreThemedLevelDifficulty),
+      );
+      final middleScore = _average(
+        levels.skip(5).take(10).map(scoreThemedLevelDifficulty),
+      );
+      final lateScore = _average(
+        levels.skip(15).map(scoreThemedLevelDifficulty),
+      );
+
+      expect(middleScore, greaterThanOrEqualTo(50));
+      expect(middleScore, greaterThanOrEqualTo(earlyScore - 4));
+      expect(lateScore, greaterThanOrEqualTo(earlyScore - 4));
+    });
+
+    test('later levels increasingly block greedy path ordering', () {
+      final difficulties = createNatureLevels()
+          .map(analyzeThemedLevelDifficulty)
+          .toList();
+      final earlyGreedyFailure = _average(
+        difficulties.take(5).map((difficulty) => difficulty.greedyFailureRatio),
+      );
+      final middleGreedyFailure = _average(
+        difficulties
+            .skip(5)
+            .take(10)
+            .map((difficulty) => difficulty.greedyFailureRatio),
+      );
+      final lateGreedyFailure = _average(
+        difficulties
+            .skip(15)
+            .map((difficulty) => difficulty.greedyFailureRatio),
+      );
+
+      final lateRouteConflict = _average(
+        difficulties
+            .skip(15)
+            .map((difficulty) => difficulty.routeConflictRatio),
+      );
+
+      expect(earlyGreedyFailure, lessThanOrEqualTo(0.80));
+      expect(middleGreedyFailure, greaterThanOrEqualTo(0.40));
+      expect(lateGreedyFailure, greaterThanOrEqualTo(0.50));
+      expect(lateRouteConflict, greaterThanOrEqualTo(0.50));
+    });
+
+    test('late levels create congested endpoints and shared choke cells', () {
+      final difficulties = createNatureLevels()
+          .map(analyzeThemedLevelDifficulty)
+          .toList();
+      final lateCongestion = _average(
+        difficulties
+            .skip(15)
+            .map((difficulty) => difficulty.endpointCongestionRatio),
+      );
+      final lateChokeRatio = _average(
+        difficulties.skip(15).map((difficulty) => difficulty.chokePointRatio),
+      );
+
+      expect(lateCongestion, greaterThanOrEqualTo(0.45));
+      expect(lateChokeRatio, greaterThanOrEqualTo(0.20));
+      expect(
+        _average(
+          difficulties
+              .skip(15)
+              .map((difficulty) => difficulty.cornerEndpointRatio),
+        ),
+        lessThanOrEqualTo(0.15),
+      );
+      expect(
+        _average(
+          difficulties
+              .skip(15)
+              .map((difficulty) => difficulty.greedyFailureRatio),
+        ),
+        greaterThanOrEqualTo(0.50),
+      );
+    });
+
+    test('dots remain distributed across the whole board', () {
+      final difficulties = createNatureLevels()
+          .map(analyzeThemedLevelDifficulty)
+          .toList();
+      final earlyDistribution = _average(
+        difficulties
+            .take(5)
+            .map((difficulty) => difficulty.boardDistributionRatio),
+      );
+      final lateDistribution = _average(
+        difficulties
+            .skip(15)
+            .map((difficulty) => difficulty.boardDistributionRatio),
+      );
+
+      expect(earlyDistribution, greaterThanOrEqualTo(0.60));
+      expect(lateDistribution, greaterThanOrEqualTo(0.80));
+      for (final difficulty in difficulties.skip(15)) {
+        expect(difficulty.boardDistributionRatio, greaterThanOrEqualTo(0.75));
+      }
+    });
+
+    test('solutions fill the board with readable natural path bands', () {
+      final difficulties = createNatureLevels()
+          .map(analyzeThemedLevelDifficulty)
+          .toList();
+      final lateNaturalCoverage = _average(
+        difficulties
+            .skip(15)
+            .map((difficulty) => difficulty.naturalCoverageRatio),
+      );
+
+      for (final difficulty in difficulties) {
+        expect(difficulty.naturalCoverageRatio, greaterThanOrEqualTo(0.68));
+      }
+      expect(lateNaturalCoverage, greaterThanOrEqualTo(0.68));
+    });
+
+    test('endpoint placement naturally demands most of the board', () {
+      final difficulties = createNatureLevels()
+          .map(analyzeThemedLevelDifficulty)
+          .toList();
+
+      for (final difficulty in difficulties) {
+        expect(difficulty.endpointDemandRatio, greaterThanOrEqualTo(0.75));
+      }
+      expect(
+        _average(
+          difficulties
+              .skip(15)
+              .map((difficulty) => difficulty.endpointDemandRatio),
+        ),
+        greaterThanOrEqualTo(0.80),
+      );
+    });
+
+    test('every route is shortest after the other dots block shortcuts', () {
+      for (final level in createNatureLevels().skip(1)) {
+        final endpoints = {
+          for (final pair in level.pairs) ...[
+            pair.sourcePosition,
+            pair.targetPosition,
+          ],
+        };
+        for (final solution in level.solutions) {
+          final source = solution.cells.first;
+          final target = solution.cells.last;
+          final blocked = <BoardPosition>{...endpoints}
+            ..remove(source)
+            ..remove(target);
+          final shortestLength = _shortestRouteLength(
+            source,
+            target,
+            rows: level.rows,
+            columns: level.columns,
+            blocked: blocked,
+          );
+
+          expect(solution.cells.length, shortestLength);
+        }
+      }
+    });
+
+    test('connecting every later pair naturally fills every cell', () {
+      for (final level in createNatureLevels().skip(1)) {
+        final endpoints = {
+          for (final pair in level.pairs) ...[
+            pair.sourcePosition,
+            pair.targetPosition,
+          ],
+        };
+        final minimumCellsRequired = level.pairs
+            .map((pair) {
+              final blocked = <BoardPosition>{...endpoints}
+                ..remove(pair.sourcePosition)
+                ..remove(pair.targetPosition);
+              return _shortestRouteLength(
+                pair.sourcePosition,
+                pair.targetPosition,
+                rows: level.rows,
+                columns: level.columns,
+                blocked: blocked,
+              );
+            })
+            .reduce((total, cells) => total + cells);
+
+        expect(minimumCellsRequired, level.rows * level.columns);
       }
     });
 
@@ -110,7 +386,10 @@ void main() {
         }).length;
 
         expect(usedCells.length, level.rows * level.columns);
-        expect(straightEndpointPairs, lessThan(level.pairs.length ~/ 2));
+        expect(
+          straightEndpointPairs,
+          lessThanOrEqualTo(level.pairs.length ~/ 2),
+        );
       }
     });
 
@@ -147,7 +426,7 @@ void main() {
       expect(levels.first.pairs, hasLength(3));
       expect(levels.last.rows, 14);
       expect(levels.last.columns, 8);
-      expect(levels.last.pairs, hasLength(10));
+      expect(levels.last.pairs, hasLength(7));
     });
 
     test('uses animal-only relationships', () {
@@ -529,6 +808,36 @@ void main() {
 
       expect(controller.finishPath(), isTrue);
       expect(controller.completedPaths, contains('seed_to_flower'));
+      expect(controller.allPairsConnected, isTrue);
+      expect(controller.coveredCellCount, 2);
+      expect(controller.remainingCellCount, 14);
+      expect(controller.coveragePercent, 12);
+      expect(controller.isBoardFilled, isFalse);
+      expect(controller.isLevelComplete, isFalse);
+    });
+
+    test('level completes when every pair fills every board cell', () {
+      final controller = GameController(initialLevel: _fullCoverageRuleLevel);
+
+      _completeGamePath(
+        controller,
+        GamePath(
+          relationshipId: NatureRelationships.seedToFlower.id,
+          cells: const [
+            BoardPosition(row: 0, column: 0),
+            BoardPosition(row: 0, column: 1),
+            BoardPosition(row: 1, column: 1),
+            BoardPosition(row: 1, column: 0),
+          ],
+          isComplete: true,
+        ),
+      );
+
+      expect(controller.allPairsConnected, isTrue);
+      expect(controller.coveragePercent, 100);
+      expect(controller.remainingCellCount, 0);
+      expect(controller.isBoardFilled, isTrue);
+      expect(controller.isLevelComplete, isTrue);
     });
 
     test('active path cannot extend past a reached endpoint', () {
@@ -587,12 +896,12 @@ void main() {
       ]);
     });
 
-    test('rectangular 14x8 level is accepted', () {
-      final level = createNatureLevel(levelNumber: 15);
+    test('expert 10x10 level is accepted', () {
+      final level = createNatureLevel(levelNumber: 20);
       final controller = GameController(initialLevel: level);
 
-      expect(controller.level.rows, 14);
-      expect(controller.level.columns, 8);
+      expect(controller.level.rows, 10);
+      expect(controller.level.columns, 10);
       expect(controller.totalPairCount, 10);
     });
   });
@@ -638,6 +947,20 @@ const _adjacentEndpointLevel = GameLevel(
       relationship: NatureRelationships.seedToFlower,
       sourcePosition: BoardPosition(row: 0, column: 0),
       targetPosition: BoardPosition(row: 0, column: 1),
+    ),
+  ],
+);
+
+const _fullCoverageRuleLevel = GameLevel(
+  id: 'full_coverage_rule_test',
+  name: 'Full Coverage Rule Test',
+  rows: 2,
+  columns: 2,
+  pairs: [
+    LevelPairPlacement(
+      relationship: NatureRelationships.seedToFlower,
+      sourcePosition: BoardPosition(row: 0, column: 0),
+      targetPosition: BoardPosition(row: 1, column: 0),
     ),
   ],
 );
@@ -711,6 +1034,82 @@ void _expectDistinctRelationshipColors(
       );
     }
   }
+}
+
+String _endpointSignature(GameLevel level) {
+  return level.pairs
+      .expand((pair) => [pair.sourcePosition, pair.targetPosition])
+      .map((position) => '${position.row},${position.column}')
+      .join('|');
+}
+
+double _interiorEndpointRatio(GameLevel level) {
+  final endpoints = level.pairs
+      .expand((pair) => [pair.sourcePosition, pair.targetPosition])
+      .toList();
+  final interiorCount = endpoints.where((position) {
+    return position.row > 0 &&
+        position.row < level.rows - 1 &&
+        position.column > 0 &&
+        position.column < level.columns - 1;
+  }).length;
+  return interiorCount / endpoints.length;
+}
+
+double _cornerEndpointRatio(GameLevel level) {
+  final endpoints = level.pairs
+      .expand((pair) => [pair.sourcePosition, pair.targetPosition])
+      .toList();
+  final cornerCount = endpoints.where((position) {
+    final isOuterRow = position.row == 0 || position.row == level.rows - 1;
+    final isOuterColumn =
+        position.column == 0 || position.column == level.columns - 1;
+    return isOuterRow && isOuterColumn;
+  }).length;
+  return cornerCount / endpoints.length;
+}
+
+double _average(Iterable<double> values) {
+  final list = values.toList();
+  return list.reduce((total, value) => total + value) / list.length;
+}
+
+int _shortestRouteLength(
+  BoardPosition source,
+  BoardPosition target, {
+  required int rows,
+  required int columns,
+  required Set<BoardPosition> blocked,
+}) {
+  final queue = <BoardPosition>[source];
+  final distance = <BoardPosition, int>{source: 1};
+  var cursor = 0;
+
+  while (cursor < queue.length) {
+    final current = queue[cursor++];
+    if (current == target) {
+      return distance[current]!;
+    }
+    const offsets = [(-1, 0), (0, 1), (1, 0), (0, -1)];
+    for (final (rowOffset, columnOffset) in offsets) {
+      final next = BoardPosition(
+        row: current.row + rowOffset,
+        column: current.column + columnOffset,
+      );
+      if (next.row < 0 ||
+          next.row >= rows ||
+          next.column < 0 ||
+          next.column >= columns ||
+          blocked.contains(next) ||
+          distance.containsKey(next)) {
+        continue;
+      }
+      distance[next] = distance[current]! + 1;
+      queue.add(next);
+    }
+  }
+
+  return 0;
 }
 
 double _rgbDistance(int first, int second) {

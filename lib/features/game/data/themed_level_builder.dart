@@ -15,6 +15,44 @@ class GeneratedThemeLevel {
   final Map<String, GamePath> solutionPaths;
 }
 
+enum ThemedLevelProgression { linear, chaptered }
+
+class ThemedLevelDifficulty {
+  const ThemedLevelDifficulty({
+    required this.score,
+    required this.interiorEndpointRatio,
+    required this.cornerEndpointRatio,
+    required this.alignedPairRatio,
+    required this.distanceRatio,
+    required this.routeConflictRatio,
+    required this.detourRatio,
+    required this.turnRatio,
+    required this.greedyFailureRatio,
+    required this.greedyCoverageRatio,
+    required this.endpointCongestionRatio,
+    required this.chokePointRatio,
+    required this.boardDistributionRatio,
+    required this.naturalCoverageRatio,
+    required this.endpointDemandRatio,
+  });
+
+  final double score;
+  final double interiorEndpointRatio;
+  final double cornerEndpointRatio;
+  final double alignedPairRatio;
+  final double distanceRatio;
+  final double routeConflictRatio;
+  final double detourRatio;
+  final double turnRatio;
+  final double greedyFailureRatio;
+  final double greedyCoverageRatio;
+  final double endpointCongestionRatio;
+  final double chokePointRatio;
+  final double boardDistributionRatio;
+  final double naturalCoverageRatio;
+  final double endpointDemandRatio;
+}
+
 class ThemeBoardProfile {
   const ThemeBoardProfile({
     required this.maxRows,
@@ -25,7 +63,7 @@ class ThemeBoardProfile {
   static const large = ThemeBoardProfile(
     maxRows: 14,
     maxColumns: 8,
-    maxPairs: 10,
+    maxPairs: 7,
   );
 
   final int maxRows;
@@ -37,11 +75,11 @@ class ThemeBoardProfile {
     final longestSide = math.max(size.width, size.height);
 
     if (shortestSide < 390 || longestSide < 720) {
-      return const ThemeBoardProfile(maxRows: 10, maxColumns: 6, maxPairs: 7);
+      return const ThemeBoardProfile(maxRows: 10, maxColumns: 6, maxPairs: 6);
     }
 
     if (shortestSide < 600) {
-      return const ThemeBoardProfile(maxRows: 12, maxColumns: 7, maxPairs: 9);
+      return const ThemeBoardProfile(maxRows: 12, maxColumns: 7, maxPairs: 7);
     }
 
     return large;
@@ -54,6 +92,7 @@ List<GameLevel> buildThemedLevels({
   required List<LearningRelationship> relationships,
   int totalLevelCount = 15,
   ThemeBoardProfile profile = ThemeBoardProfile.large,
+  ThemedLevelProgression progression = ThemedLevelProgression.linear,
 }) {
   return List<GameLevel>.unmodifiable([
     for (var levelNumber = 1; levelNumber <= totalLevelCount; levelNumber += 1)
@@ -64,6 +103,7 @@ List<GameLevel> buildThemedLevels({
         totalLevelCount: totalLevelCount,
         levelNumber: levelNumber,
         profile: profile,
+        progression: progression,
       ),
   ]);
 }
@@ -75,17 +115,32 @@ GameLevel buildThemedLevel({
   required int totalLevelCount,
   required int levelNumber,
   ThemeBoardProfile profile = ThemeBoardProfile.large,
+  ThemedLevelProgression progression = ThemedLevelProgression.linear,
 }) {
   final blueprint = _LevelBlueprint.forLevel(
     levelNumber: levelNumber.clamp(1, totalLevelCount).toInt(),
     totalLevelCount: totalLevelCount,
     relationshipCount: relationships.length,
     profile: profile,
+    progression: progression,
   );
-  final paths = _partitionTraversalIntoPaths(
-    traversal: _challengingTraversal(blueprint.rows, blueprint.columns),
-    pairCount: blueprint.pairCount,
-  );
+  final paths =
+      idPrefix == 'nature' &&
+          blueprint.levelNumber == 1 &&
+          blueprint.rows == 6 &&
+          blueprint.columns == 6 &&
+          blueprint.pairCount == 4
+      ? _natureOpeningPaths()
+      : _generateProgressivePaths(
+          layoutKey: idPrefix,
+          levelNumber: blueprint.levelNumber,
+          totalLevelCount: totalLevelCount,
+          rows: blueprint.rows,
+          columns: blueprint.columns,
+          pairCount: blueprint.pairCount,
+          progression: progression,
+          requireAutomaticCoverage: idPrefix == 'nature',
+        );
   final levelRelationships = [
     for (var index = 0; index < blueprint.pairCount; index += 1)
       relationships[(blueprint.levelNumber + index - 1) % relationships.length],
@@ -239,6 +294,18 @@ List<String> validateThemedLevelSolutions(GameLevel level) {
   return errors;
 }
 
+double scoreThemedLevelDifficulty(GameLevel level) {
+  return analyzeThemedLevelDifficulty(level).score;
+}
+
+ThemedLevelDifficulty analyzeThemedLevelDifficulty(GameLevel level) {
+  return _analyzePathLayout(
+    paths: [for (final solution in level.solutions) solution.cells],
+    rows: level.rows,
+    columns: level.columns,
+  );
+}
+
 List<BoardPosition> _orientedPath(List<BoardPosition> path, int seed) {
   if (seed.isEven) {
     return List<BoardPosition>.unmodifiable(path.reversed);
@@ -246,14 +313,1250 @@ List<BoardPosition> _orientedPath(List<BoardPosition> path, int seed) {
   return path;
 }
 
+/// A readable 6x6 introduction made from nested regions. The four paths are
+/// disjoint and together contain every board cell, so their endpoints teach
+/// the player the intended full-board flow without leaving a central pocket.
+List<List<BoardPosition>> _natureOpeningPaths() {
+  return const [
+    [
+      BoardPosition(row: 2, column: 1),
+      BoardPosition(row: 3, column: 1),
+      BoardPosition(row: 4, column: 1),
+      BoardPosition(row: 5, column: 1),
+      BoardPosition(row: 5, column: 2),
+      BoardPosition(row: 5, column: 3),
+      BoardPosition(row: 5, column: 4),
+      BoardPosition(row: 5, column: 5),
+    ],
+    [
+      BoardPosition(row: 2, column: 2),
+      BoardPosition(row: 3, column: 2),
+      BoardPosition(row: 4, column: 2),
+      BoardPosition(row: 4, column: 3),
+      BoardPosition(row: 4, column: 4),
+      BoardPosition(row: 4, column: 5),
+    ],
+    [
+      BoardPosition(row: 0, column: 0),
+      BoardPosition(row: 0, column: 1),
+      BoardPosition(row: 0, column: 2),
+      BoardPosition(row: 0, column: 3),
+      BoardPosition(row: 0, column: 4),
+      BoardPosition(row: 0, column: 5),
+      BoardPosition(row: 1, column: 5),
+      BoardPosition(row: 2, column: 5),
+      BoardPosition(row: 3, column: 5),
+      BoardPosition(row: 3, column: 4),
+      BoardPosition(row: 3, column: 3),
+      BoardPosition(row: 2, column: 3),
+    ],
+    [
+      BoardPosition(row: 5, column: 0),
+      BoardPosition(row: 4, column: 0),
+      BoardPosition(row: 3, column: 0),
+      BoardPosition(row: 2, column: 0),
+      BoardPosition(row: 1, column: 0),
+      BoardPosition(row: 1, column: 1),
+      BoardPosition(row: 1, column: 2),
+      BoardPosition(row: 1, column: 3),
+      BoardPosition(row: 1, column: 4),
+      BoardPosition(row: 2, column: 4),
+    ],
+  ];
+}
+
+List<List<BoardPosition>> _generateProgressivePaths({
+  required String layoutKey,
+  required int levelNumber,
+  required int totalLevelCount,
+  required int rows,
+  required int columns,
+  required int pairCount,
+  required ThemedLevelProgression progression,
+  bool requireAutomaticCoverage = false,
+}) {
+  if (requireAutomaticCoverage &&
+      rows == columns &&
+      (pairCount == rows || pairCount == rows - 1)) {
+    final paths = _automaticCoveragePaths(
+      size: rows,
+      pairCount: pairCount,
+      seed: _stableSeed('$layoutKey:$levelNumber:$rows:$columns'),
+    );
+    if (_pathsNaturallyForceFullCoverage(paths, rows: rows, columns: columns)) {
+      return paths;
+    }
+    throw StateError(
+      'Automatic coverage layout failed validation for '
+      '$rows x $columns with $pairCount pairs.',
+    );
+  }
+  final progress = _difficultyProgress(
+    levelNumber: levelNumber,
+    totalLevelCount: totalLevelCount,
+    progression: progression,
+  );
+  final isBossLevel =
+      progression == ThemedLevelProgression.chaptered && levelNumber % 10 == 0;
+  final baseSeed = _stableSeed('$layoutKey:$levelNumber:$rows:$columns');
+  final candidates = <_PathLayoutCandidate>[];
+  final candidateCount =
+      48 +
+      (progress * progress * 160).round() +
+      (pairCount * progress * 8).round() +
+      (isBossLevel ? 48 : 0);
+
+  for (
+    var candidateIndex = 0;
+    candidateIndex < candidateCount;
+    candidateIndex += 1
+  ) {
+    final random = math.Random(baseSeed + candidateIndex * 7919);
+    var traversal = _baseTraversalForCandidate(
+      rows: rows,
+      columns: columns,
+      candidateIndex: candidateIndex,
+    );
+    traversal = _transformTraversal(
+      traversal,
+      rows: rows,
+      columns: columns,
+      random: random,
+    );
+    final baseMutationCount =
+        2 +
+        (progress * 12).round() +
+        (progress * progress * 16).round() +
+        (isBossLevel ? 6 : 0);
+    final isCleanStructureCandidate =
+        candidateIndex % 4 == 2 || candidateIndex % 7 == 0;
+    traversal = _mutateTraversal(
+      traversal,
+      random: random,
+      mutationCount: isCleanStructureCandidate
+          ? (progress * 4).round() + random.nextInt(2)
+          : baseMutationCount + random.nextInt(5),
+    );
+    if (progress >= 0.55 &&
+        candidateIndex.isOdd &&
+        !isCleanStructureCandidate) {
+      traversal = _mutateTraversal(
+        traversal,
+        random: random,
+        mutationCount: 3 + (progress * 8).round(),
+      );
+    }
+
+    if (_areAdjacent(traversal.first, traversal.last)) {
+      final offset = random.nextInt(traversal.length);
+      traversal = List<BoardPosition>.unmodifiable([
+        ...traversal.skip(offset),
+        ...traversal.take(offset),
+      ]);
+    }
+
+    if (!_isContinuousTraversal(traversal)) {
+      continue;
+    }
+
+    final paths = _partitionTraversalIntoPaths(
+      traversal: traversal,
+      pairCount: pairCount,
+      random: random,
+      variation: 0.15 + progress * 0.85,
+    );
+    candidates.add(
+      _PathLayoutCandidate(
+        paths: paths,
+        difficulty: _analyzePathLayout(
+          paths: paths,
+          rows: rows,
+          columns: columns,
+        ),
+      ),
+    );
+  }
+
+  if (candidates.isEmpty) {
+    return _partitionTraversalIntoPaths(
+      traversal: _spiralTraversal(rows, columns),
+      pairCount: pairCount,
+    );
+  }
+
+  if (requireAutomaticCoverage) {
+    final automaticCoverageCandidates = candidates.where((candidate) {
+      return candidate.difficulty.endpointDemandRatio >= 0.999999 &&
+          _maximumPathExcessCells(candidate.paths) == 0;
+    }).toList();
+    if (automaticCoverageCandidates.isNotEmpty) {
+      candidates
+        ..clear()
+        ..addAll(automaticCoverageCandidates);
+    }
+  }
+
+  candidates.sort(
+    (first, second) =>
+        first.difficulty.score.compareTo(second.difficulty.score),
+  );
+  final areaDifficulty = ((rows * columns - 25) / 75 * 4).clamp(0, 4);
+  final targetDifficulty =
+      30 + progress * 36 + areaDifficulty + (isBossLevel ? 2 : 0);
+  final minimumGreedyFailure = progress >= 0.75
+      ? 0.99
+      : progress <= 0.25
+      ? 0.0
+      : (0.20 + (progress - 0.25) / 0.50 * 0.55 + (isBossLevel ? 0.08 : 0))
+            .clamp(0.20, 0.90);
+  final minimumRouteConflict =
+      (0.05 + progress * 0.35 + (isBossLevel ? 0.08 : 0)).clamp(0, 0.90);
+  final maximumCornerRatio = progress < 0.35
+      ? 1.0
+      : (0.30 - (progress - 0.35) / 0.65 * 0.20).clamp(0.10, 0.30);
+  final minimumEndpointCongestion = progress >= 0.75
+      ? 0.55
+      : progress < 0.40
+      ? 0.0
+      : ((progress - 0.40) / 0.35 * 0.40).clamp(0, 0.40);
+  final minimumChokePoint = progress < 0.35
+      ? 0.0
+      : (0.40 + (progress - 0.35) / 0.65 * 0.24 + (isBossLevel ? 0.04 : 0))
+            .clamp(0.40, 0.72);
+  final minimumBoardDistribution =
+      (0.60 + progress * 0.20 + (isBossLevel ? 0.04 : 0)).clamp(0.60, 0.88);
+  final minimumNaturalCoverage = 0.70 + (isBossLevel ? 0.03 : 0);
+  final minimumEndpointDemand = requireAutomaticCoverage
+      ? 1.0
+      : (0.75 + progress * 0.08 + (isBossLevel ? 0.02 : 0)).clamp(0.75, 0.85);
+  final maximumPathExcess = requireAutomaticCoverage ? 0 : 6;
+  for (final candidate in candidates) {
+    if (candidate.difficulty.score >= targetDifficulty &&
+        _maximumPathExcessCells(candidate.paths) <= maximumPathExcess &&
+        candidate.difficulty.greedyFailureRatio >= minimumGreedyFailure &&
+        candidate.difficulty.routeConflictRatio >= minimumRouteConflict &&
+        candidate.difficulty.cornerEndpointRatio <= maximumCornerRatio &&
+        candidate.difficulty.endpointCongestionRatio >=
+            minimumEndpointCongestion &&
+        candidate.difficulty.chokePointRatio >= minimumChokePoint &&
+        candidate.difficulty.boardDistributionRatio >=
+            minimumBoardDistribution &&
+        candidate.difficulty.naturalCoverageRatio >= minimumNaturalCoverage &&
+        candidate.difficulty.endpointDemandRatio >= minimumEndpointDemand) {
+      return candidate.paths;
+    }
+  }
+  var fallbackCandidates = candidates.where((candidate) {
+    return candidate.difficulty.endpointDemandRatio >= minimumEndpointDemand &&
+        _maximumPathExcessCells(candidate.paths) <= maximumPathExcess;
+  }).toList();
+  if (fallbackCandidates.isEmpty) {
+    fallbackCandidates = candidates.where((candidate) {
+      return candidate.difficulty.endpointDemandRatio >= 0.75 &&
+          _maximumPathExcessCells(candidate.paths) <= maximumPathExcess;
+    }).toList();
+  }
+  if (fallbackCandidates.isEmpty) {
+    fallbackCandidates = candidates;
+  }
+  if (progress >= 0.75) {
+    final lateGameCandidates = fallbackCandidates.where((candidate) {
+      return candidate.difficulty.greedyFailureRatio >= 0.99 &&
+          candidate.difficulty.chokePointRatio >= 0.50 &&
+          candidate.difficulty.endpointCongestionRatio >=
+              minimumEndpointCongestion &&
+          candidate.difficulty.cornerEndpointRatio <= maximumCornerRatio &&
+          candidate.difficulty.boardDistributionRatio >=
+              minimumBoardDistribution &&
+          candidate.difficulty.naturalCoverageRatio >= minimumNaturalCoverage;
+    }).toList();
+    if (lateGameCandidates.isNotEmpty) {
+      fallbackCandidates = lateGameCandidates;
+    }
+  }
+  fallbackCandidates.sort((first, second) {
+    final firstPriority =
+        first.difficulty.greedyFailureRatio * 30 +
+        first.difficulty.routeConflictRatio * 22 +
+        first.difficulty.chokePointRatio * 18 +
+        first.difficulty.endpointCongestionRatio * 12 +
+        first.difficulty.boardDistributionRatio * 12 +
+        first.difficulty.endpointDemandRatio * 30 +
+        first.difficulty.naturalCoverageRatio * 15 +
+        (1 - first.difficulty.cornerEndpointRatio) * 8 +
+        first.difficulty.detourRatio * 2 +
+        first.difficulty.score * 0.03;
+    final secondPriority =
+        second.difficulty.greedyFailureRatio * 30 +
+        second.difficulty.routeConflictRatio * 22 +
+        second.difficulty.chokePointRatio * 18 +
+        second.difficulty.endpointCongestionRatio * 12 +
+        second.difficulty.boardDistributionRatio * 12 +
+        second.difficulty.endpointDemandRatio * 30 +
+        second.difficulty.naturalCoverageRatio * 15 +
+        (1 - second.difficulty.cornerEndpointRatio) * 8 +
+        second.difficulty.detourRatio * 2 +
+        second.difficulty.score * 0.03;
+    return firstPriority.compareTo(secondPriority);
+  });
+  return fallbackCandidates.last.paths;
+}
+
+/// Builds a solved board before exposing only its endpoints.
+///
+/// With [size] pairs, every route is a Manhattan-shortest shell or domino. The
+/// sum of those minimum route sizes equals the board area, so connecting every
+/// pair without overlap mathematically forces 100% coverage.
+///
+/// With [size] - 1 pairs, the final 3x3 region becomes a short blocker plus a
+/// U-shaped route. The blocker occupies the U route's direct shortcut, making
+/// the detour a consequence of pair interaction instead of a leftover-cell
+/// cleanup path. This is used by 6x6 Nature boards to stay at five pairs.
+List<List<BoardPosition>> _automaticCoveragePaths({
+  required int size,
+  required int pairCount,
+  required int seed,
+}) {
+  assert(size >= 3);
+  assert(pairCount == size || pairCount == size - 1);
+  final paths = <List<BoardPosition>>[];
+  final random = math.Random(seed);
+  var top = 0;
+  var bottom = size - 1;
+  var left = 0;
+  var right = size - 1;
+  final coreSize = pairCount == size ? 2 : 3;
+  var peelTopAndRight = true;
+
+  while (bottom - top + 1 > coreSize) {
+    final corner = pairCount == size
+        ? (peelTopAndRight ? 0 : 2)
+        : random.nextInt(4);
+    switch (corner) {
+      case 0:
+        paths.add([
+          for (var column = left; column <= right; column += 1)
+            BoardPosition(row: top, column: column),
+          for (var row = top + 1; row <= bottom; row += 1)
+            BoardPosition(row: row, column: right),
+        ]);
+        top += 1;
+        right -= 1;
+      case 1:
+        paths.add([
+          for (var row = top; row <= bottom; row += 1)
+            BoardPosition(row: row, column: right),
+          for (var column = right - 1; column >= left; column -= 1)
+            BoardPosition(row: bottom, column: column),
+        ]);
+        bottom -= 1;
+        right -= 1;
+      case 2:
+        paths.add([
+          for (var column = right; column >= left; column -= 1)
+            BoardPosition(row: bottom, column: column),
+          for (var row = bottom - 1; row >= top; row -= 1)
+            BoardPosition(row: row, column: left),
+        ]);
+        bottom -= 1;
+        left += 1;
+      case 3:
+        paths.add([
+          for (var row = bottom; row >= top; row -= 1)
+            BoardPosition(row: row, column: left),
+          for (var column = left + 1; column <= right; column += 1)
+            BoardPosition(row: top, column: column),
+        ]);
+        top += 1;
+        left += 1;
+    }
+    peelTopAndRight = !peelTopAndRight;
+  }
+
+  if (coreSize == 2 && seed.isEven) {
+    paths.addAll([
+      [
+        BoardPosition(row: top, column: left),
+        BoardPosition(row: top, column: right),
+      ],
+      [
+        BoardPosition(row: bottom, column: left),
+        BoardPosition(row: bottom, column: right),
+      ],
+    ]);
+  } else if (coreSize == 2) {
+    paths.addAll([
+      [
+        BoardPosition(row: top, column: left),
+        BoardPosition(row: bottom, column: left),
+      ],
+      [
+        BoardPosition(row: top, column: right),
+        BoardPosition(row: bottom, column: right),
+      ],
+    ]);
+  } else {
+    // The small L blocks the longer route's direct shortcut. Each route is the
+    // shortest one available around the other pair's endpoints, so together
+    // they consume this entire 3x3 region without a cleanup extension.
+    paths.addAll([
+      [
+        BoardPosition(row: top, column: left),
+        BoardPosition(row: top, column: left + 1),
+        BoardPosition(row: top, column: right),
+        BoardPosition(row: top + 1, column: right),
+        BoardPosition(row: bottom, column: right),
+        BoardPosition(row: bottom, column: left + 1),
+      ],
+      [
+        BoardPosition(row: top + 1, column: left + 1),
+        BoardPosition(row: top + 1, column: left),
+        BoardPosition(row: bottom, column: left),
+      ],
+    ]);
+  }
+
+  final rotation = seed % 4;
+  final reflect = (seed ~/ 4).isOdd;
+  BoardPosition rotate(BoardPosition position) {
+    final reflected = reflect
+        ? BoardPosition(row: position.row, column: size - 1 - position.column)
+        : position;
+    return switch (rotation) {
+      1 => BoardPosition(
+        row: reflected.column,
+        column: size - 1 - reflected.row,
+      ),
+      2 => BoardPosition(
+        row: size - 1 - reflected.row,
+        column: size - 1 - reflected.column,
+      ),
+      3 => BoardPosition(
+        row: size - 1 - reflected.column,
+        column: reflected.row,
+      ),
+      _ => reflected,
+    };
+  }
+
+  final pathOffset = (seed ~/ 8) % paths.length;
+  final orderedPaths = [...paths.skip(pathOffset), ...paths.take(pathOffset)];
+  return List<List<BoardPosition>>.unmodifiable([
+    for (var index = 0; index < orderedPaths.length; index += 1)
+      List<BoardPosition>.unmodifiable(
+        (index + seed).isEven
+            ? orderedPaths[index].map(rotate)
+            : orderedPaths[index].reversed.map(rotate),
+      ),
+  ]);
+}
+
+double _difficultyProgress({
+  required int levelNumber,
+  required int totalLevelCount,
+  required ThemedLevelProgression progression,
+}) {
+  if (totalLevelCount <= 1) {
+    return 1;
+  }
+  if (progression == ThemedLevelProgression.linear) {
+    return (levelNumber - 1) / (totalLevelCount - 1);
+  }
+
+  final levelInChapter = (levelNumber - 1) % 10;
+  final baseProgress = (levelNumber - 1) / (totalLevelCount - 1);
+  const chapterRhythm = [
+    -0.02,
+    0.00,
+    0.01,
+    0.015,
+    0.00,
+    0.015,
+    0.025,
+    -0.03,
+    0.025,
+    0.04,
+  ];
+  return (baseProgress + chapterRhythm[levelInChapter]).clamp(0, 1);
+}
+
+List<BoardPosition> _baseTraversalForCandidate({
+  required int rows,
+  required int columns,
+  required int candidateIndex,
+}) {
+  return switch (candidateIndex % 4) {
+    0 => _rowSerpentineTraversal(rows, columns),
+    1 => _columnSerpentineTraversal(rows, columns),
+    2 => _spiralTraversal(rows, columns),
+    _ =>
+      _hamiltonianCycleTraversal(rows, columns) ??
+          _rowSerpentineTraversal(rows, columns),
+  };
+}
+
+List<BoardPosition> _transformTraversal(
+  List<BoardPosition> traversal, {
+  required int rows,
+  required int columns,
+  required math.Random random,
+}) {
+  final reflectRows = random.nextBool();
+  var transformed = [
+    for (final position in traversal)
+      BoardPosition(
+        row: reflectRows ? rows - 1 - position.row : position.row,
+        column: position.column,
+      ),
+  ];
+
+  if (random.nextBool()) {
+    transformed = [
+      for (final position in transformed)
+        BoardPosition(row: position.row, column: columns - 1 - position.column),
+    ];
+  }
+  if (random.nextBool()) {
+    transformed = transformed.reversed.toList();
+  }
+  return List<BoardPosition>.unmodifiable(transformed);
+}
+
+List<BoardPosition> _mutateTraversal(
+  List<BoardPosition> traversal, {
+  required math.Random random,
+  required int mutationCount,
+}) {
+  final mutated = List<BoardPosition>.of(traversal);
+  var acceptedMutations = 0;
+  var attempts = 0;
+  final maxAttempts = mutationCount * 36;
+
+  while (acceptedMutations < mutationCount && attempts < maxAttempts) {
+    attempts += 1;
+    final firstEdgeIndex = random.nextInt(mutated.length - 3);
+    final secondEdgeIndex =
+        firstEdgeIndex +
+        2 +
+        random.nextInt(mutated.length - firstEdgeIndex - 3);
+    final first = mutated[firstEdgeIndex];
+    final afterFirst = mutated[firstEdgeIndex + 1];
+    final second = mutated[secondEdgeIndex];
+    final afterSecond = mutated[secondEdgeIndex + 1];
+
+    if (!_areAdjacent(first, second) ||
+        !_areAdjacent(afterFirst, afterSecond)) {
+      continue;
+    }
+
+    mutated.replaceRange(
+      firstEdgeIndex + 1,
+      secondEdgeIndex + 1,
+      mutated.sublist(firstEdgeIndex + 1, secondEdgeIndex + 1).reversed,
+    );
+    acceptedMutations += 1;
+  }
+
+  return List<BoardPosition>.unmodifiable(mutated);
+}
+
+List<BoardPosition> _rowSerpentineTraversal(int rows, int columns) {
+  return List<BoardPosition>.unmodifiable([
+    for (var row = 0; row < rows; row += 1)
+      if (row.isEven)
+        for (var column = 0; column < columns; column += 1)
+          BoardPosition(row: row, column: column)
+      else
+        for (var column = columns - 1; column >= 0; column -= 1)
+          BoardPosition(row: row, column: column),
+  ]);
+}
+
+List<BoardPosition> _columnSerpentineTraversal(int rows, int columns) {
+  return List<BoardPosition>.unmodifiable([
+    for (var column = 0; column < columns; column += 1)
+      if (column.isEven)
+        for (var row = 0; row < rows; row += 1)
+          BoardPosition(row: row, column: column)
+      else
+        for (var row = rows - 1; row >= 0; row -= 1)
+          BoardPosition(row: row, column: column),
+  ]);
+}
+
+List<BoardPosition>? _hamiltonianCycleTraversal(int rows, int columns) {
+  if (rows.isEven) {
+    return _rowCycleTraversal(rows, columns);
+  }
+  if (columns.isEven) {
+    return List<BoardPosition>.unmodifiable([
+      for (final position in _rowCycleTraversal(columns, rows))
+        BoardPosition(row: position.column, column: position.row),
+    ]);
+  }
+  return null;
+}
+
+List<BoardPosition> _rowCycleTraversal(int rows, int columns) {
+  final traversal = <BoardPosition>[
+    for (var column = 0; column < columns; column += 1)
+      BoardPosition(row: 0, column: column),
+  ];
+
+  for (var row = 1; row < rows; row += 1) {
+    if (row.isOdd) {
+      for (var column = columns - 1; column >= 1; column -= 1) {
+        traversal.add(BoardPosition(row: row, column: column));
+      }
+    } else {
+      for (var column = 1; column < columns; column += 1) {
+        traversal.add(BoardPosition(row: row, column: column));
+      }
+    }
+  }
+
+  traversal.add(BoardPosition(row: rows - 1, column: 0));
+  for (var row = rows - 2; row >= 1; row -= 1) {
+    traversal.add(BoardPosition(row: row, column: 0));
+  }
+  return List<BoardPosition>.unmodifiable(traversal);
+}
+
+ThemedLevelDifficulty _analyzePathLayout({
+  required List<List<BoardPosition>> paths,
+  required int rows,
+  required int columns,
+}) {
+  if (paths.isEmpty) {
+    return const ThemedLevelDifficulty(
+      score: 0,
+      interiorEndpointRatio: 0,
+      cornerEndpointRatio: 0,
+      alignedPairRatio: 0,
+      distanceRatio: 0,
+      routeConflictRatio: 0,
+      detourRatio: 0,
+      turnRatio: 0,
+      greedyFailureRatio: 0,
+      greedyCoverageRatio: 0,
+      endpointCongestionRatio: 0,
+      chokePointRatio: 0,
+      boardDistributionRatio: 0,
+      naturalCoverageRatio: 0,
+      endpointDemandRatio: 0,
+    );
+  }
+
+  final endpointPairs = [
+    for (final path in paths) _canonicalEndpointPair(path.first, path.last),
+  ];
+  final endpoints = [
+    for (final pair in endpointPairs) ...[pair.source, pair.target],
+  ];
+  final interiorRatio =
+      endpoints
+          .where((position) => _isInterior(position, rows, columns))
+          .length /
+      endpoints.length;
+  final cornerRatio =
+      endpoints.where((position) => _isCorner(position, rows, columns)).length /
+      endpoints.length;
+  final alignedRatio =
+      endpointPairs
+          .where(
+            (pair) =>
+                pair.source.row == pair.target.row ||
+                pair.source.column == pair.target.column,
+          )
+          .length /
+      endpointPairs.length;
+  final maxDistance = math.max(1, rows + columns - 2);
+  final distanceRatio =
+      endpointPairs
+          .map(
+            (pair) =>
+                _manhattanDistance(pair.source, pair.target) / maxDistance,
+          )
+          .reduce((total, value) => total + value) /
+      endpointPairs.length;
+  final conflictRatio = _shortestRouteConflictRatio(endpointPairs);
+  final detourRatio =
+      paths
+          .map((path) {
+            final directCells = _manhattanDistance(path.first, path.last) + 1;
+            return ((path.length / directCells - 1) / 2).clamp(0, 1);
+          })
+          .reduce((total, value) => total + value) /
+      paths.length;
+  final turnRatio =
+      paths.map(_pathTurnRatio).reduce((total, value) => total + value) /
+      paths.length;
+  final greedyAnalysis = _analyzeGreedyRoutes(
+    endpointPairs,
+    rows: rows,
+    columns: columns,
+  );
+  final endpointCongestionRatio = _endpointCongestionRatio(endpointPairs);
+  final chokePointRatio = _chokePointRatio(endpointPairs);
+  final boardDistributionRatio = _boardDistributionRatio(
+    endpoints,
+    rows: rows,
+    columns: columns,
+  );
+  final naturalCoverageRatio = _naturalCoverageRatio(
+    paths,
+    rows: rows,
+    columns: columns,
+  );
+  final endpointDemandRatio = _endpointDemandRatio(
+    endpointPairs,
+    rows: rows,
+    columns: columns,
+  );
+  final score =
+      100 *
+          (interiorRatio * 0.04 +
+              (1 - cornerRatio) * 0.03 +
+              (1 - alignedRatio) * 0.03 +
+              distanceRatio * 0.03 +
+              conflictRatio * 0.20 +
+              detourRatio * 0.13 +
+              greedyAnalysis.failureRatio * 0.22 +
+              endpointCongestionRatio * 0.06 +
+              chokePointRatio * 0.06 +
+              boardDistributionRatio * 0.09 +
+              naturalCoverageRatio * 0.11) +
+      ((rows * columns - 36) / 64).clamp(0, 1) * 12;
+  return ThemedLevelDifficulty(
+    score: score,
+    interiorEndpointRatio: interiorRatio,
+    cornerEndpointRatio: cornerRatio,
+    alignedPairRatio: alignedRatio,
+    distanceRatio: distanceRatio,
+    routeConflictRatio: conflictRatio,
+    detourRatio: detourRatio,
+    turnRatio: turnRatio,
+    greedyFailureRatio: greedyAnalysis.failureRatio,
+    greedyCoverageRatio: greedyAnalysis.coverageRatio,
+    endpointCongestionRatio: endpointCongestionRatio,
+    chokePointRatio: chokePointRatio,
+    boardDistributionRatio: boardDistributionRatio,
+    naturalCoverageRatio: naturalCoverageRatio,
+    endpointDemandRatio: endpointDemandRatio,
+  );
+}
+
+double _endpointDemandRatio(
+  List<_EndpointPair> pairs, {
+  required int rows,
+  required int columns,
+}) {
+  if (pairs.isEmpty || rows * columns == 0) {
+    return 0;
+  }
+  final allEndpoints = {
+    for (final pair in pairs) ...[pair.source, pair.target],
+  };
+  var naturallyRequiredCells = 0;
+  for (final pair in pairs) {
+    final blockedEndpoints = <BoardPosition>{...allEndpoints}
+      ..remove(pair.source)
+      ..remove(pair.target);
+    final route = _shortestAvailableRoute(
+      pair.source,
+      pair.target,
+      blocked: blockedEndpoints,
+      rows: rows,
+      columns: columns,
+    );
+    if (route == null) {
+      return 0;
+    }
+    naturallyRequiredCells += route.length;
+  }
+  return (naturallyRequiredCells / (rows * columns)).clamp(0, 1);
+}
+
+bool _pathsNaturallyForceFullCoverage(
+  List<List<BoardPosition>> paths, {
+  required int rows,
+  required int columns,
+}) {
+  if (paths.isEmpty) {
+    return false;
+  }
+  final pairs = [
+    for (final path in paths)
+      _EndpointPair(source: path.first, target: path.last),
+  ];
+  final allEndpoints = {
+    for (final pair in pairs) ...[pair.source, pair.target],
+  };
+  var minimumRequiredCells = 0;
+
+  for (var index = 0; index < pairs.length; index += 1) {
+    final pair = pairs[index];
+    final blockedEndpoints = <BoardPosition>{...allEndpoints}
+      ..remove(pair.source)
+      ..remove(pair.target);
+    final shortestRoute = _shortestAvailableRoute(
+      pair.source,
+      pair.target,
+      blocked: blockedEndpoints,
+      rows: rows,
+      columns: columns,
+    );
+    if (shortestRoute == null || shortestRoute.length != paths[index].length) {
+      return false;
+    }
+    minimumRequiredCells += shortestRoute.length;
+  }
+
+  return minimumRequiredCells == rows * columns;
+}
+
+int _maximumPathExcessCells(List<List<BoardPosition>> paths) {
+  var maximumExcess = 0;
+  for (final path in paths) {
+    final directCells = _manhattanDistance(path.first, path.last) + 1;
+    maximumExcess = math.max(maximumExcess, path.length - directCells);
+  }
+  return maximumExcess;
+}
+
+double _naturalCoverageRatio(
+  List<List<BoardPosition>> paths, {
+  required int rows,
+  required int columns,
+}) {
+  if (paths.isEmpty) {
+    return 0;
+  }
+
+  final boardScale = math.max(2.0, math.min(rows, columns) * 0.40);
+  final pathScores = paths.map((path) {
+    if (path.length < 2) {
+      return 0.0;
+    }
+    final turnDensity = _pathTurnRatio(path);
+    var turnCount = 0;
+    for (var index = 2; index < path.length; index += 1) {
+      final previousDirection = (
+        path[index - 1].row - path[index - 2].row,
+        path[index - 1].column - path[index - 2].column,
+      );
+      final direction = (
+        path[index].row - path[index - 1].row,
+        path[index].column - path[index - 1].column,
+      );
+      if (direction != previousDirection) {
+        turnCount += 1;
+      }
+    }
+    final averageStraightRun = (path.length - 1) / (turnCount + 1);
+    final runEconomy = (averageStraightRun / boardScale).clamp(0, 1);
+    return (1 - turnDensity) * 0.65 + runEconomy * 0.35;
+  });
+  return pathScores.reduce((total, score) => total + score) / paths.length;
+}
+
+double _boardDistributionRatio(
+  List<BoardPosition> endpoints, {
+  required int rows,
+  required int columns,
+}) {
+  if (endpoints.isEmpty) {
+    return 0;
+  }
+
+  final minimumRow = endpoints.map((position) => position.row).reduce(math.min);
+  final maximumRow = endpoints.map((position) => position.row).reduce(math.max);
+  final minimumColumn = endpoints
+      .map((position) => position.column)
+      .reduce(math.min);
+  final maximumColumn = endpoints
+      .map((position) => position.column)
+      .reduce(math.max);
+  final rowSpan = rows <= 1 ? 1.0 : (maximumRow - minimumRow) / (rows - 1);
+  final columnSpan = columns <= 1
+      ? 1.0
+      : (maximumColumn - minimumColumn) / (columns - 1);
+
+  final occupiedRegions = <(int, int)>{
+    for (final endpoint in endpoints)
+      (
+        math.min(2, endpoint.row * 3 ~/ rows),
+        math.min(2, endpoint.column * 3 ~/ columns),
+      ),
+  };
+  final reachableRegionCount = math.min(9, endpoints.length);
+  final regionCoverage = occupiedRegions.length / reachableRegionCount;
+
+  return ((rowSpan + columnSpan) / 2 * 0.65 + regionCoverage * 0.35).clamp(
+    0,
+    1,
+  );
+}
+
+double _endpointCongestionRatio(List<_EndpointPair> pairs) {
+  if (pairs.length < 2) {
+    return 0;
+  }
+
+  final indexedEndpoints = <({BoardPosition position, int pairIndex})>[
+    for (var pairIndex = 0; pairIndex < pairs.length; pairIndex += 1) ...[
+      (position: pairs[pairIndex].source, pairIndex: pairIndex),
+      (position: pairs[pairIndex].target, pairIndex: pairIndex),
+    ],
+  ];
+  var congestedEndpoints = 0;
+  for (final endpoint in indexedEndpoints) {
+    final nearbyForeignEndpoints = indexedEndpoints.where((other) {
+      return other.pairIndex != endpoint.pairIndex &&
+          _manhattanDistance(endpoint.position, other.position) <= 2;
+    }).length;
+    if (nearbyForeignEndpoints >= 2) {
+      congestedEndpoints += 1;
+    }
+  }
+  return congestedEndpoints / indexedEndpoints.length;
+}
+
+double _chokePointRatio(List<_EndpointPair> pairs) {
+  if (pairs.length < 2) {
+    return 0;
+  }
+
+  final endpoints = {
+    for (final pair in pairs) ...[pair.source, pair.target],
+  };
+  final pairMembershipByCell = <BoardPosition, Set<int>>{};
+  for (var pairIndex = 0; pairIndex < pairs.length; pairIndex += 1) {
+    for (final route in _shortestRouteOptions(pairs[pairIndex])) {
+      for (final cell in route) {
+        if (endpoints.contains(cell)) {
+          continue;
+        }
+        pairMembershipByCell.putIfAbsent(cell, () => <int>{}).add(pairIndex);
+      }
+    }
+  }
+
+  var maximumCompetingPairCount = 0;
+  for (final membership in pairMembershipByCell.values) {
+    maximumCompetingPairCount = math.max(
+      maximumCompetingPairCount,
+      membership.length,
+    );
+  }
+  return maximumCompetingPairCount / pairs.length;
+}
+
+double _shortestRouteConflictRatio(List<_EndpointPair> pairs) {
+  if (pairs.length < 2) {
+    return 0;
+  }
+
+  final strongestConflictByPair = List<double>.filled(pairs.length, 0);
+  for (var firstIndex = 0; firstIndex < pairs.length; firstIndex += 1) {
+    final firstOptions = _shortestRouteOptions(pairs[firstIndex]);
+    for (
+      var secondIndex = firstIndex + 1;
+      secondIndex < pairs.length;
+      secondIndex += 1
+    ) {
+      final secondOptions = _shortestRouteOptions(pairs[secondIndex]);
+      var intersectingCombinations = 0;
+      for (final firstRoute in firstOptions) {
+        for (final secondRoute in secondOptions) {
+          if (firstRoute.intersection(secondRoute).isNotEmpty) {
+            intersectingCombinations += 1;
+          }
+        }
+      }
+      final conflictStrength =
+          intersectingCombinations /
+          (firstOptions.length * secondOptions.length);
+      strongestConflictByPair[firstIndex] = math.max(
+        strongestConflictByPair[firstIndex],
+        conflictStrength,
+      );
+      strongestConflictByPair[secondIndex] = math.max(
+        strongestConflictByPair[secondIndex],
+        conflictStrength,
+      );
+    }
+  }
+  return strongestConflictByPair.reduce((total, value) => total + value) /
+      strongestConflictByPair.length;
+}
+
+List<Set<BoardPosition>> _shortestRouteOptions(_EndpointPair pair) {
+  return [
+    _orthogonalRoute(pair.source, pair.target, horizontalFirst: true),
+    _orthogonalRoute(pair.source, pair.target, horizontalFirst: false),
+  ];
+}
+
+Set<BoardPosition> _orthogonalRoute(
+  BoardPosition source,
+  BoardPosition target, {
+  required bool horizontalFirst,
+}) {
+  final corner = horizontalFirst
+      ? BoardPosition(row: source.row, column: target.column)
+      : BoardPosition(row: target.row, column: source.column);
+  return {..._straightCells(source, corner), ..._straightCells(corner, target)};
+}
+
+Iterable<BoardPosition> _straightCells(
+  BoardPosition source,
+  BoardPosition target,
+) sync* {
+  final rowStep = target.row.compareTo(source.row);
+  final columnStep = target.column.compareTo(source.column);
+  var current = source;
+  yield current;
+  while (current != target) {
+    current = BoardPosition(
+      row: current.row + rowStep,
+      column: current.column + columnStep,
+    );
+    yield current;
+  }
+}
+
+double _pathTurnRatio(List<BoardPosition> path) {
+  if (path.length < 3) {
+    return 0;
+  }
+  var turns = 0;
+  for (var index = 2; index < path.length; index += 1) {
+    final previousRowDelta = path[index - 1].row - path[index - 2].row;
+    final previousColumnDelta = path[index - 1].column - path[index - 2].column;
+    final rowDelta = path[index].row - path[index - 1].row;
+    final columnDelta = path[index].column - path[index - 1].column;
+    if (previousRowDelta != rowDelta || previousColumnDelta != columnDelta) {
+      turns += 1;
+    }
+  }
+  return turns / (path.length - 2);
+}
+
+({double failureRatio, double coverageRatio}) _analyzeGreedyRoutes(
+  List<_EndpointPair> pairs, {
+  required int rows,
+  required int columns,
+}) {
+  if (pairs.isEmpty) {
+    return (failureRatio: 0, coverageRatio: 0);
+  }
+  final orders = <List<int>>[];
+  final natural = [for (var index = 0; index < pairs.length; index += 1) index];
+  final reversed = natural.reversed.toList();
+  for (
+    var offset = 0;
+    offset < pairs.length && orders.length < 4;
+    offset += 1
+  ) {
+    orders.add([...natural.skip(offset), ...natural.take(offset)]);
+    if (orders.length < 4) {
+      orders.add([...reversed.skip(offset), ...reversed.take(offset)]);
+    }
+  }
+  orders
+    ..add(
+      [...natural]..sort(
+        (first, second) =>
+            _manhattanDistance(
+              pairs[first].source,
+              pairs[first].target,
+            ).compareTo(
+              _manhattanDistance(pairs[second].source, pairs[second].target),
+            ),
+      ),
+    )
+    ..add(
+      [...natural]..sort(
+        (first, second) =>
+            _manhattanDistance(
+              pairs[second].source,
+              pairs[second].target,
+            ).compareTo(
+              _manhattanDistance(pairs[first].source, pairs[first].target),
+            ),
+      ),
+    );
+
+  final results = [
+    for (final order in orders)
+      _evaluateGreedyRouteOrder(
+        pairs,
+        order: order,
+        rows: rows,
+        columns: columns,
+      ),
+  ];
+  final failedOrders = results.where((result) => !result.connected).length;
+  final averageCoverage =
+      results
+          .map((result) => result.coverageRatio)
+          .reduce((total, value) => total + value) /
+      results.length;
+  return (
+    failureRatio: failedOrders / results.length,
+    coverageRatio: averageCoverage,
+  );
+}
+
+_GreedyRouteResult _evaluateGreedyRouteOrder(
+  List<_EndpointPair> pairs, {
+  required List<int> order,
+  required int rows,
+  required int columns,
+}) {
+  final allEndpoints = {
+    for (final pair in pairs) ...[pair.source, pair.target],
+  };
+  final occupied = <BoardPosition>{};
+
+  for (final pairIndex in order) {
+    final pair = pairs[pairIndex];
+    final blocked = <BoardPosition>{...allEndpoints, ...occupied}
+      ..remove(pair.source)
+      ..remove(pair.target);
+    final route = _shortestAvailableRoute(
+      pair.source,
+      pair.target,
+      blocked: blocked,
+      rows: rows,
+      columns: columns,
+    );
+    if (route == null) {
+      return _GreedyRouteResult(
+        connected: false,
+        coverageRatio: occupied.length / (rows * columns),
+      );
+    }
+    occupied.addAll(route);
+  }
+  return _GreedyRouteResult(
+    connected: true,
+    coverageRatio: occupied.length / (rows * columns),
+  );
+}
+
+List<BoardPosition>? _shortestAvailableRoute(
+  BoardPosition source,
+  BoardPosition target, {
+  required Set<BoardPosition> blocked,
+  required int rows,
+  required int columns,
+}) {
+  final queue = <BoardPosition>[source];
+  final previous = <BoardPosition, BoardPosition?>{source: null};
+  var cursor = 0;
+
+  while (cursor < queue.length) {
+    final current = queue[cursor];
+    cursor += 1;
+    if (current == target) {
+      final route = <BoardPosition>[];
+      BoardPosition? position = target;
+      while (position != null) {
+        route.add(position);
+        position = previous[position];
+      }
+      return route.reversed.toList();
+    }
+
+    for (final next in _neighbors(current, rows: rows, columns: columns)) {
+      if (blocked.contains(next) || previous.containsKey(next)) {
+        continue;
+      }
+      previous[next] = current;
+      queue.add(next);
+    }
+  }
+  return null;
+}
+
+Iterable<BoardPosition> _neighbors(
+  BoardPosition position, {
+  required int rows,
+  required int columns,
+}) sync* {
+  const offsets = [(-1, 0), (0, 1), (1, 0), (0, -1)];
+  for (final (rowOffset, columnOffset) in offsets) {
+    final next = BoardPosition(
+      row: position.row + rowOffset,
+      column: position.column + columnOffset,
+    );
+    if (next.row >= 0 &&
+        next.row < rows &&
+        next.column >= 0 &&
+        next.column < columns) {
+      yield next;
+    }
+  }
+}
+
+bool _isInterior(BoardPosition position, int rows, int columns) {
+  return position.row > 0 &&
+      position.row < rows - 1 &&
+      position.column > 0 &&
+      position.column < columns - 1;
+}
+
+bool _isCorner(BoardPosition position, int rows, int columns) {
+  final isOuterRow = position.row == 0 || position.row == rows - 1;
+  final isOuterColumn = position.column == 0 || position.column == columns - 1;
+  return isOuterRow && isOuterColumn;
+}
+
+int _manhattanDistance(BoardPosition first, BoardPosition second) {
+  return (first.row - second.row).abs() + (first.column - second.column).abs();
+}
+
+_EndpointPair _canonicalEndpointPair(
+  BoardPosition first,
+  BoardPosition second,
+) {
+  final firstComesFirst =
+      first.row < second.row ||
+      (first.row == second.row && first.column <= second.column);
+  return firstComesFirst
+      ? _EndpointPair(source: first, target: second)
+      : _EndpointPair(source: second, target: first);
+}
+
+int _stableSeed(String value) {
+  var hash = 0x811C9DC5;
+  for (final codeUnit in value.codeUnits) {
+    hash ^= codeUnit;
+    hash = (hash * 0x01000193) & 0x7FFFFFFF;
+  }
+  return hash;
+}
+
 List<List<BoardPosition>> _partitionTraversalIntoPaths({
   required List<BoardPosition> traversal,
   required int pairCount,
+  math.Random? random,
+  double variation = 0,
 }) {
-  final plannedLengths = _planPathLengths(
+  var plannedLengths = _planPathLengths(
     traversal: traversal,
     pairCount: pairCount,
   );
+  if (random != null && variation > 0) {
+    plannedLengths = _varyPathLengths(
+      traversal: traversal,
+      plannedLengths: plannedLengths,
+      random: random,
+      variation: variation,
+    );
+  }
   final paths = <List<BoardPosition>>[];
   var cursor = 0;
 
@@ -269,6 +1572,57 @@ List<List<BoardPosition>> _partitionTraversalIntoPaths({
   return paths;
 }
 
+List<int> _varyPathLengths({
+  required List<BoardPosition> traversal,
+  required List<int> plannedLengths,
+  required math.Random random,
+  required double variation,
+}) {
+  final varied = List<int>.of(plannedLengths);
+  final averageLength = traversal.length / varied.length;
+  final maximumLength = math.max(4, (averageLength * 2.2).round());
+  final targetChanges = (varied.length * 5 * variation).round();
+  var acceptedChanges = 0;
+  var attempts = 0;
+
+  while (acceptedChanges < targetChanges && attempts < targetChanges * 18) {
+    attempts += 1;
+    final donorIndex = random.nextInt(varied.length);
+    var receiverIndex = random.nextInt(varied.length);
+    if (receiverIndex == donorIndex) {
+      receiverIndex = (receiverIndex + 1) % varied.length;
+    }
+    if (varied[donorIndex] <= 3 || varied[receiverIndex] >= maximumLength) {
+      continue;
+    }
+
+    varied[donorIndex] -= 1;
+    varied[receiverIndex] += 1;
+    if (_areAllSegmentsInteresting(traversal, varied)) {
+      acceptedChanges += 1;
+    } else {
+      varied[donorIndex] += 1;
+      varied[receiverIndex] -= 1;
+    }
+  }
+
+  return List<int>.unmodifiable(varied);
+}
+
+bool _areAllSegmentsInteresting(
+  List<BoardPosition> traversal,
+  List<int> lengths,
+) {
+  var cursor = 0;
+  for (final length in lengths) {
+    if (!_isInterestingSegment(traversal, cursor, length)) {
+      return false;
+    }
+    cursor += length;
+  }
+  return cursor == traversal.length;
+}
+
 List<int> _planPathLengths({
   required List<BoardPosition> traversal,
   required int pairCount,
@@ -279,6 +1633,7 @@ List<int> _planPathLengths({
     pairCount: pairCount,
     cursor: 0,
     planned: planned,
+    failedStates: <(int, int)>{},
   )) {
     return planned;
   }
@@ -297,8 +1652,13 @@ bool _choosePathLengths({
   required int pairCount,
   required int cursor,
   required List<int> planned,
+  required Set<(int, int)> failedStates,
 }) {
   final pathIndex = planned.length;
+  final state = (pathIndex, cursor);
+  if (failedStates.contains(state)) {
+    return false;
+  }
   final remainingPaths = pairCount - pathIndex;
   final remainingCells = traversal.length - cursor;
   const minimumPathLength = 3;
@@ -308,6 +1668,7 @@ bool _choosePathLengths({
       planned.add(remainingCells);
       return true;
     }
+    failedStates.add(state);
     return false;
   }
 
@@ -337,12 +1698,14 @@ bool _choosePathLengths({
       pairCount: pairCount,
       cursor: cursor + length,
       planned: planned,
+      failedStates: failedStates,
     )) {
       return true;
     }
     planned.removeLast();
   }
 
+  failedStates.add(state);
   return false;
 }
 
@@ -358,36 +1721,6 @@ bool _isInterestingSegment(
   final start = traversal[startIndex];
   final end = traversal[startIndex + length - 1];
   return start.row != end.row && start.column != end.column;
-}
-
-List<BoardPosition> _challengingTraversal(int rows, int columns) {
-  final traversal = _spiralTraversal(rows, columns);
-  if (rows < 7 && columns < 7) {
-    return traversal;
-  }
-
-  final transformed = <BoardPosition>[];
-  final seen = <BoardPosition>{};
-
-  for (final position in traversal) {
-    final shifted = position.row.isOdd
-        ? BoardPosition(
-            row: position.row,
-            column: columns - 1 - position.column,
-          )
-        : position;
-
-    if (seen.add(shifted)) {
-      transformed.add(shifted);
-    }
-  }
-
-  if (transformed.length == rows * columns &&
-      _isContinuousTraversal(transformed)) {
-    return List<BoardPosition>.unmodifiable(transformed);
-  }
-
-  return traversal;
 }
 
 List<BoardPosition> _spiralTraversal(int rows, int columns) {
@@ -484,7 +1817,17 @@ class _LevelBlueprint {
     required int totalLevelCount,
     required int relationshipCount,
     required ThemeBoardProfile profile,
+    required ThemedLevelProgression progression,
   }) {
+    if (progression == ThemedLevelProgression.chaptered) {
+      return _chapteredBlueprint(
+        levelNumber: levelNumber,
+        totalLevelCount: totalLevelCount,
+        relationshipCount: relationshipCount,
+        profile: profile,
+      );
+    }
+
     final progress = totalLevelCount <= 1
         ? 1.0
         : (levelNumber - 1) / (totalLevelCount - 1);
@@ -497,13 +1840,55 @@ class _LevelBlueprint {
       start: 3,
       end: profile.maxPairs,
       progress: progress,
-    ).clamp(3, relationshipCount);
+    ).clamp(3, math.min(profile.maxPairs, relationshipCount)).toInt();
 
     return _LevelBlueprint(
       levelNumber: levelNumber,
       rows: boardShape.rows,
       columns: boardShape.columns,
       pairCount: math.min(pairCount, boardShape.rows * boardShape.columns ~/ 6),
+    );
+  }
+
+  static _LevelBlueprint _chapteredBlueprint({
+    required int levelNumber,
+    required int totalLevelCount,
+    required int relationshipCount,
+    required ThemeBoardProfile profile,
+  }) {
+    final progress = totalLevelCount <= 1
+        ? 1.0
+        : (levelNumber - 1) / (totalLevelCount - 1);
+    final levelInChapter = (levelNumber - 1) % 10;
+    final isBossLevel = levelInChapter == 9;
+    final isRecoveryLevel = levelInChapter == 7;
+
+    final maximumSize = math.min(
+      math.min(profile.maxRows, profile.maxColumns),
+      math.min(profile.maxPairs, relationshipCount),
+    );
+    var boardSize = _scaledValue(
+      start: 6,
+      end: maximumSize,
+      progress: progress,
+    );
+    if (isBossLevel) {
+      boardSize += 1;
+    } else if (isRecoveryLevel) {
+      boardSize -= 1;
+    }
+    boardSize = boardSize.clamp(6, maximumSize);
+    final pairCount = levelNumber == 1
+        ? 4
+        : boardSize == 6
+        ? 5
+        : boardSize;
+
+    return _LevelBlueprint(
+      levelNumber: levelNumber,
+      rows: boardSize,
+      columns: boardSize,
+      pairCount: pairCount,
     );
   }
 
@@ -562,4 +1947,28 @@ class _BoardShape {
 
   final int rows;
   final int columns;
+}
+
+class _PathLayoutCandidate {
+  const _PathLayoutCandidate({required this.paths, required this.difficulty});
+
+  final List<List<BoardPosition>> paths;
+  final ThemedLevelDifficulty difficulty;
+}
+
+class _EndpointPair {
+  const _EndpointPair({required this.source, required this.target});
+
+  final BoardPosition source;
+  final BoardPosition target;
+}
+
+class _GreedyRouteResult {
+  const _GreedyRouteResult({
+    required this.connected,
+    required this.coverageRatio,
+  });
+
+  final bool connected;
+  final double coverageRatio;
 }

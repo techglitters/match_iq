@@ -149,7 +149,7 @@ class _HeroPanel extends StatelessWidget {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _MetricPill(label: 'Levels', value: '15'),
+                _MetricPill(label: 'Levels', value: '${theme.levels.length}'),
                 _MetricPill(label: 'Unlocked', value: '$unlockedLevel'),
                 _MetricPill(
                   label: 'Stars',
