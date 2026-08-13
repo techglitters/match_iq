@@ -10,6 +10,7 @@ class AppProgressData {
     required this.themes,
     this.dailyPuzzles = const {},
     this.showSolutionPaths = false,
+    this.freePlayMode = false,
   });
 
   const AppProgressData.initial()
@@ -22,7 +23,8 @@ class AppProgressData {
         'animals': ThemeProgress.initial(),
       },
       dailyPuzzles = const {},
-      showSolutionPaths = false;
+      showSolutionPaths = false,
+      freePlayMode = false;
 
   final String activeThemeId;
   final String? lastPlayedThemeId;
@@ -31,6 +33,7 @@ class AppProgressData {
   final Map<String, ThemeProgress> themes;
   final Map<String, DailyPuzzleResult> dailyPuzzles;
   final bool showSolutionPaths;
+  final bool freePlayMode;
 
   ThemeProgress themeProgress(String themeId) {
     return themes[themeId] ?? const ThemeProgress.initial();
@@ -45,6 +48,7 @@ class AppProgressData {
     Map<String, ThemeProgress>? themes,
     Map<String, DailyPuzzleResult>? dailyPuzzles,
     bool? showSolutionPaths,
+    bool? freePlayMode,
   }) {
     return AppProgressData(
       activeThemeId: activeThemeId ?? this.activeThemeId,
@@ -58,6 +62,7 @@ class AppProgressData {
       themes: themes ?? this.themes,
       dailyPuzzles: dailyPuzzles ?? this.dailyPuzzles,
       showSolutionPaths: showSolutionPaths ?? this.showSolutionPaths,
+      freePlayMode: freePlayMode ?? this.freePlayMode,
     );
   }
 
@@ -68,6 +73,7 @@ class AppProgressData {
       'lastPlayedLevelNumber': lastPlayedLevelNumber,
       'hasSeenHome': hasSeenHome,
       'showSolutionPaths': showSolutionPaths,
+      'freePlayMode': freePlayMode,
       'themes': {
         for (final entry in themes.entries) entry.key: entry.value.toJson(),
       },
@@ -112,6 +118,7 @@ class AppProgressData {
       lastPlayedLevelNumber: json['lastPlayedLevelNumber'] as int?,
       hasSeenHome: json['hasSeenHome'] as bool? ?? false,
       showSolutionPaths: json['showSolutionPaths'] as bool? ?? false,
+      freePlayMode: json['freePlayMode'] as bool? ?? false,
       themes: Map<String, ThemeProgress>.unmodifiable({
         'nature': const ThemeProgress.initial(),
         'animals': const ThemeProgress.initial(),

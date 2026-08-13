@@ -619,6 +619,46 @@ void main() {
     });
 
     test(
+      'free play mode opens available levels without changing progress',
+      () async {
+        final store = MemoryProgressStore();
+        final controller = _progressController(store);
+
+        await controller.load();
+        expect(controller.freePlayMode, isFalse);
+        expect(
+          controller.isLevelUnlocked(ThemeCatalog.natureThemeId, 20),
+          isFalse,
+        );
+
+        await controller.setFreePlayMode(true);
+
+        expect(controller.freePlayMode, isTrue);
+        expect(controller.highestUnlockedLevel(ThemeCatalog.natureThemeId), 1);
+        expect(
+          controller.isLevelUnlocked(ThemeCatalog.natureThemeId, 20),
+          isTrue,
+        );
+
+        await controller.recordLevelOpened(
+          themeId: ThemeCatalog.natureThemeId,
+          levelNumber: 20,
+        );
+
+        final restored = _progressController(store);
+        await restored.load();
+
+        expect(restored.freePlayMode, isTrue);
+        expect(restored.highestUnlockedLevel(ThemeCatalog.natureThemeId), 1);
+        expect(restored.continueLevelNumber(), 20);
+        expect(
+          AppProgressData.fromJson(restored.data.toJson()).freePlayMode,
+          isTrue,
+        );
+      },
+    );
+
+    test(
       'daily puzzle completion persists without changing continue level',
       () async {
         final controller = _progressController(

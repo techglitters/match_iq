@@ -127,12 +127,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Show solution paths'), findsOneWidget);
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(_switchValue(tester, 'Show solution paths'), isFalse);
 
     await tester.tap(find.text('Show solution paths'));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    expect(_switchValue(tester, 'Show solution paths'), isTrue);
 
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
@@ -151,4 +151,51 @@ void main() {
     expect(pathPainter.solutionPaths, isNotEmpty);
     expect(pathPainter.solutionPaths, hasLength(4));
   });
+
+  testWidgets('Free play mode opens later levels from the level map', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      ConnectGrowApp(progressStore: MemoryProgressStore()),
+    );
+
+    await tester.pump(
+      GameConstants.splashDuration + const Duration(milliseconds: 100),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Free play mode'), findsOneWidget);
+    expect(_switchValue(tester, 'Free play mode'), isFalse);
+
+    await tester.tap(find.text('Free play mode'));
+    await tester.pumpAndSettle();
+
+    expect(_switchValue(tester, 'Free play mode'), isTrue);
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Play'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Level Map'));
+    await tester.pumpAndSettle();
+
+    final level20 = find.bySemanticsLabel(
+      'Level 20, Sprout challenge, unlocked',
+    );
+    await tester.ensureVisible(level20);
+    await tester.pumpAndSettle();
+    await tester.tap(level20);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nature 20'), findsOneWidget);
+  });
+}
+
+bool _switchValue(WidgetTester tester, String label) {
+  final tile = find.widgetWithText(SwitchListTile, label);
+  final switchFinder = find.descendant(of: tile, matching: find.byType(Switch));
+  return tester.widget<Switch>(switchFinder).value;
 }

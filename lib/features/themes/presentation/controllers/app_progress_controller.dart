@@ -30,6 +30,8 @@ class AppProgressController extends ChangeNotifier {
 
   bool get showSolutionPaths => _data.showSolutionPaths;
 
+  bool get freePlayMode => _data.freePlayMode;
+
   GameTheme get activeTheme {
     return themeById(_data.activeThemeId) ?? ThemeCatalog.natureWorld;
   }
@@ -160,7 +162,7 @@ class AppProgressController extends ChangeNotifier {
     final progress = progressForTheme(theme.id);
     final lastPlayed = _data.lastPlayedLevelNumber;
 
-    if (lastPlayed != null && progress.isUnlocked(lastPlayed)) {
+    if (lastPlayed != null && isLevelUnlocked(theme.id, lastPlayed)) {
       return lastPlayed.clamp(1, theme.levels.length).toInt();
     }
 
@@ -169,6 +171,13 @@ class AppProgressController extends ChangeNotifier {
 
   int playLevelNumber(String themeId) {
     final theme = themeById(themeId) ?? ThemeCatalog.natureWorld;
+    if (_data.freePlayMode) {
+      final lastPlayed = _data.lastPlayedLevelNumber;
+      if (_data.lastPlayedThemeId == theme.id && lastPlayed != null) {
+        return lastPlayed.clamp(1, theme.levels.length).toInt();
+      }
+    }
+
     final progress = progressForTheme(theme.id);
 
     for (final level in theme.levels) {
@@ -183,6 +192,13 @@ class AppProgressController extends ChangeNotifier {
   }
 
   bool isLevelUnlocked(String themeId, int levelNumber) {
+    if (_data.freePlayMode) {
+      final theme = themeById(themeId);
+      return theme != null &&
+          theme.isAvailable &&
+          levelNumber >= 1 &&
+          levelNumber <= theme.levels.length;
+    }
     return progressForTheme(themeId).isUnlocked(levelNumber);
   }
 
@@ -205,6 +221,14 @@ class AppProgressController extends ChangeNotifier {
       return;
     }
     _data = _data.copyWith(showSolutionPaths: value);
+    await _saveAndNotify();
+  }
+
+  Future<void> setFreePlayMode(bool value) async {
+    if (_data.freePlayMode == value) {
+      return;
+    }
+    _data = _data.copyWith(freePlayMode: value);
     await _saveAndNotify();
   }
 

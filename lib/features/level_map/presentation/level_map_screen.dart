@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../app/app_routes.dart';
 import '../../themes/data/theme_catalog.dart';
+import '../../themes/domain/game_theme.dart';
 import '../../themes/presentation/controllers/app_progress_controller.dart';
 import 'widgets/level_node.dart';
 import 'widgets/level_path_painter.dart';
@@ -109,30 +110,12 @@ class _LevelMapScreenState extends State<LevelMapScreen> {
                             levelNumber <= theme.levels.length;
                             levelNumber += 1
                           )
-                            _PositionedLevelNode(
+                            _levelNode(
+                              context: context,
+                              appProgress: appProgress,
+                              theme: theme,
                               levelNumber: levelNumber,
                               width: constraints.maxWidth,
-                              showLockIcon:
-                                  theme.id != ThemeCatalog.natureThemeId,
-                              visual: theme.id == ThemeCatalog.natureThemeId
-                                  ? _natureVisualFor(levelNumber)
-                                  : null,
-                              status: _statusFor(
-                                progress.levelProgress(levelNumber).completed,
-                                progress.isUnlocked(levelNumber),
-                                progress.highestUnlockedLevel == levelNumber,
-                              ),
-                              stars: progress.levelProgress(levelNumber).stars,
-                              onTap: progress.isUnlocked(levelNumber)
-                                  ? () => Navigator.of(context).pushNamed(
-                                      AppRoutes.themeLevel(
-                                        theme.id,
-                                        levelNumber,
-                                      ),
-                                    )
-                                  : null,
-                              isCurrent:
-                                  progress.highestUnlockedLevel == levelNumber,
                             ),
                         ],
                       ),
@@ -158,6 +141,38 @@ class _LevelMapScreenState extends State<LevelMapScreen> {
       return LevelStatus.unlocked;
     }
     return LevelStatus.locked;
+  }
+
+  Widget _levelNode({
+    required BuildContext context,
+    required AppProgressController appProgress,
+    required GameTheme theme,
+    required int levelNumber,
+    required double width,
+  }) {
+    final progress = appProgress.progressForTheme(theme.id);
+    final unlocked = appProgress.isLevelUnlocked(theme.id, levelNumber);
+
+    return _PositionedLevelNode(
+      levelNumber: levelNumber,
+      width: width,
+      showLockIcon: theme.id != ThemeCatalog.natureThemeId,
+      visual: theme.id == ThemeCatalog.natureThemeId
+          ? _natureVisualFor(levelNumber)
+          : null,
+      status: _statusFor(
+        progress.levelProgress(levelNumber).completed,
+        unlocked,
+        progress.highestUnlockedLevel == levelNumber,
+      ),
+      stars: progress.levelProgress(levelNumber).stars,
+      onTap: unlocked
+          ? () => Navigator.of(
+              context,
+            ).pushNamed(AppRoutes.themeLevel(theme.id, levelNumber))
+          : null,
+      isCurrent: progress.highestUnlockedLevel == levelNumber,
+    );
   }
 
   Offset _nodeCenter(int levelNumber, double width) {
