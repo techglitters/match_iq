@@ -1174,6 +1174,14 @@ double _difficultyProgress({
     return (levelNumber - 1) / (totalLevelCount - 1);
   }
 
+  // The 100-level Nature curriculum uses a true per-level gradient. Board
+  // and pair-count changes happen at chapter boundaries, while these smaller
+  // increments steadily raise mutation, conflict, choke, detour, greedy-order,
+  // and K-shortest-route requirements inside every chapter.
+  if (totalLevelCount == 100) {
+    return (levelNumber - 1) / (totalLevelCount - 1);
+  }
+
   final levelInChapter = (levelNumber - 1) % 10;
   final baseProgress = (levelNumber - 1) / (totalLevelCount - 1);
   const chapterRhythm = [
@@ -2598,6 +2606,14 @@ class _LevelBlueprint {
         pairCount: 3 + band,
       );
     }
+    if (totalLevelCount == 100 &&
+        progression == ThemedLevelProgression.chaptered) {
+      return _hundredLevelBlueprint(
+        levelNumber: levelNumber,
+        relationshipCount: relationshipCount,
+        profile: profile,
+      );
+    }
     if (progression == ThemedLevelProgression.chaptered) {
       return _chapteredBlueprint(
         levelNumber: levelNumber,
@@ -2626,6 +2642,55 @@ class _LevelBlueprint {
       rows: boardShape.rows,
       columns: boardShape.columns,
       pairCount: math.min(pairCount, boardShape.rows * boardShape.columns ~/ 6),
+    );
+  }
+
+  static _LevelBlueprint _hundredLevelBlueprint({
+    required int levelNumber,
+    required int relationshipCount,
+    required ThemeBoardProfile profile,
+  }) {
+    const stages = <_HundredLevelStage>[
+      _HundredLevelStage(rows: 5, columns: 5, pairCount: 3),
+      _HundredLevelStage(rows: 5, columns: 5, pairCount: 3),
+      _HundredLevelStage(rows: 5, columns: 6, pairCount: 3),
+      _HundredLevelStage(rows: 5, columns: 6, pairCount: 4),
+      _HundredLevelStage(rows: 6, columns: 6, pairCount: 4),
+      _HundredLevelStage(rows: 6, columns: 6, pairCount: 4),
+      _HundredLevelStage(rows: 6, columns: 7, pairCount: 4),
+      _HundredLevelStage(rows: 6, columns: 7, pairCount: 5),
+      _HundredLevelStage(rows: 7, columns: 7, pairCount: 5),
+      _HundredLevelStage(rows: 7, columns: 7, pairCount: 5),
+      _HundredLevelStage(rows: 7, columns: 8, pairCount: 5),
+      _HundredLevelStage(rows: 7, columns: 8, pairCount: 6),
+      _HundredLevelStage(rows: 8, columns: 8, pairCount: 6),
+      _HundredLevelStage(rows: 8, columns: 8, pairCount: 6),
+      _HundredLevelStage(rows: 8, columns: 9, pairCount: 6),
+      _HundredLevelStage(rows: 8, columns: 9, pairCount: 7),
+      _HundredLevelStage(rows: 9, columns: 9, pairCount: 7),
+      _HundredLevelStage(rows: 9, columns: 10, pairCount: 7),
+      _HundredLevelStage(rows: 9, columns: 10, pairCount: 8),
+      _HundredLevelStage(rows: 10, columns: 10, pairCount: 8),
+    ];
+    final safeLevelNumber = levelNumber.clamp(1, 100);
+    final stageIndex = ((safeLevelNumber - 1) ~/ 5).clamp(0, stages.length - 1);
+    final stage = stages[stageIndex];
+    final rotateRectangle =
+        stage.rows != stage.columns && safeLevelNumber.isEven;
+    final requestedRows = rotateRectangle ? stage.columns : stage.rows;
+    final requestedColumns = rotateRectangle ? stage.rows : stage.columns;
+    final rows = requestedRows.clamp(5, profile.maxRows);
+    final columns = requestedColumns.clamp(5, profile.maxColumns);
+    final maximumPairCount = math.min(
+      math.min(profile.maxPairs, relationshipCount),
+      rows * columns ~/ 3,
+    );
+
+    return _LevelBlueprint(
+      levelNumber: safeLevelNumber,
+      rows: rows,
+      columns: columns,
+      pairCount: stage.pairCount.clamp(3, maximumPairCount),
     );
   }
 
@@ -2726,6 +2791,18 @@ class _BoardShape {
 
   final int rows;
   final int columns;
+}
+
+class _HundredLevelStage {
+  const _HundredLevelStage({
+    required this.rows,
+    required this.columns,
+    required this.pairCount,
+  });
+
+  final int rows;
+  final int columns;
+  final int pairCount;
 }
 
 class _PathLayoutCandidate {

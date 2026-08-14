@@ -52,7 +52,7 @@ GeneratedNatureLevel generateNatureLevel({
 class NatureLevels {
   const NatureLevels._();
 
-  static const totalLevelCount = 20;
+  static const totalLevelCount = 100;
 
   static final Map<String, List<GameLevel>> _levelsByProfile = {};
 
@@ -101,7 +101,7 @@ class NatureLevels {
     return NatureBoardProfile(
       maxRows: squareLimit,
       maxColumns: squareLimit,
-      maxPairs: profile.maxPairs,
+      maxPairs: math.max(8, profile.maxPairs),
     );
   }
 }
