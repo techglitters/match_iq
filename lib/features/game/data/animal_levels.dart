@@ -45,7 +45,7 @@ GeneratedAnimalLevel generateAnimalLevel({
 class AnimalLevels {
   const AnimalLevels._();
 
-  static const totalLevelCount = 15;
+  static const totalLevelCount = 20;
 
   static final Map<String, List<GameLevel>> _levelsByProfile = {};
 

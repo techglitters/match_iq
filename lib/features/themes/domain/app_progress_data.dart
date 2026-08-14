@@ -11,6 +11,7 @@ class AppProgressData {
     this.dailyPuzzles = const {},
     this.showSolutionPaths = false,
     this.freePlayMode = false,
+    this.bypassFullBoardCoverage = false,
   });
 
   const AppProgressData.initial()
@@ -24,7 +25,8 @@ class AppProgressData {
       },
       dailyPuzzles = const {},
       showSolutionPaths = false,
-      freePlayMode = false;
+      freePlayMode = false,
+      bypassFullBoardCoverage = false;
 
   final String activeThemeId;
   final String? lastPlayedThemeId;
@@ -34,6 +36,7 @@ class AppProgressData {
   final Map<String, DailyPuzzleResult> dailyPuzzles;
   final bool showSolutionPaths;
   final bool freePlayMode;
+  final bool bypassFullBoardCoverage;
 
   ThemeProgress themeProgress(String themeId) {
     return themes[themeId] ?? const ThemeProgress.initial();
@@ -49,6 +52,7 @@ class AppProgressData {
     Map<String, DailyPuzzleResult>? dailyPuzzles,
     bool? showSolutionPaths,
     bool? freePlayMode,
+    bool? bypassFullBoardCoverage,
   }) {
     return AppProgressData(
       activeThemeId: activeThemeId ?? this.activeThemeId,
@@ -63,6 +67,8 @@ class AppProgressData {
       dailyPuzzles: dailyPuzzles ?? this.dailyPuzzles,
       showSolutionPaths: showSolutionPaths ?? this.showSolutionPaths,
       freePlayMode: freePlayMode ?? this.freePlayMode,
+      bypassFullBoardCoverage:
+          bypassFullBoardCoverage ?? this.bypassFullBoardCoverage,
     );
   }
 
@@ -74,6 +80,7 @@ class AppProgressData {
       'hasSeenHome': hasSeenHome,
       'showSolutionPaths': showSolutionPaths,
       'freePlayMode': freePlayMode,
+      'bypassFullBoardCoverage': bypassFullBoardCoverage,
       'themes': {
         for (final entry in themes.entries) entry.key: entry.value.toJson(),
       },
@@ -119,6 +126,8 @@ class AppProgressData {
       hasSeenHome: json['hasSeenHome'] as bool? ?? false,
       showSolutionPaths: json['showSolutionPaths'] as bool? ?? false,
       freePlayMode: json['freePlayMode'] as bool? ?? false,
+      bypassFullBoardCoverage:
+          json['bypassFullBoardCoverage'] as bool? ?? false,
       themes: Map<String, ThemeProgress>.unmodifiable({
         'nature': const ThemeProgress.initial(),
         'animals': const ThemeProgress.initial(),

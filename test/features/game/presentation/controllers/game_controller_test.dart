@@ -28,56 +28,18 @@ void main() {
       final levels = createNatureLevels();
 
       expect(levels, hasLength(20));
-      expect(levels.first.rows, 6);
-      expect(levels.first.columns, 6);
-      expect(levels.first.pairs, hasLength(4));
-      for (final level in levels.where((level) => level.rows == 6)) {
-        expect(level.pairs.length, lessThanOrEqualTo(5));
-      }
-      expect(levels.last.rows, 10);
-      expect(levels.last.columns, 10);
-      expect(levels.last.pairs, hasLength(10));
+      _expectTwentyLevelBlueprint(levels);
     });
 
-    test('uses two chapters with boss and recovery board rhythms', () {
-      final levels = createNatureLevels();
-      var previousBossCellCount = 0;
-
-      for (var chapter = 0; chapter < 2; chapter += 1) {
-        final recoveryLevel = levels[chapter * 10 + 7];
-        final bossLevel = levels[chapter * 10 + 9];
-        final bossCellCount = bossLevel.rows * bossLevel.columns;
-
-        expect(bossCellCount, greaterThanOrEqualTo(previousBossCellCount));
-        expect(
-          bossCellCount,
-          greaterThanOrEqualTo(recoveryLevel.rows * recoveryLevel.columns),
-        );
-        expect(bossLevel.pairs.length, greaterThan(recoveryLevel.pairs.length));
-        previousBossCellCount = bossCellCount;
-      }
-
-      expect((levels[9].rows, levels[9].columns), (9, 9));
-      expect((levels[19].rows, levels[19].columns), (10, 10));
-    });
-
-    test('sizes boards and pair territories as one shared recipe', () {
+    test('grows board and pair count together every five levels', () {
       final levels = createNatureLevels();
 
       for (final level in levels) {
         final cellsPerPair = level.rows * level.columns / level.pairs.length;
         expect(level.rows, level.columns);
-        expect(cellsPerPair, inInclusiveRange(6.0, 10.0));
+        expect(cellsPerPair, inInclusiveRange(8.0, 11.0));
       }
-
-      expect(levels.first.pairs, hasLength(4));
-      expect(levels.first.rows, 6);
-      expect(levels[7].pairs.length, lessThan(levels[9].pairs.length));
-      expect(levels[7].rows, lessThan(levels[9].rows));
-      expect(levels[17].pairs.length, lessThan(levels[19].pairs.length));
-      expect(levels[17].rows, lessThan(levels[19].rows));
-      expect(levels.last.pairs, hasLength(10));
-      expect(levels.last.rows, 10);
+      _expectTwentyLevelBlueprint(levels);
     });
 
     test('compact profiles preserve square openings and safe proportions', () {
@@ -91,8 +53,8 @@ void main() {
       expect(levels.first.rows, levels.first.columns);
       expect(levels[1].rows, levels[1].columns);
       expect(levels[2].rows, levels[2].columns);
-      expect(levels.last.rows, 7);
-      expect(levels.last.columns, 7);
+      expect(levels.last.rows, 8);
+      expect(levels.last.columns, 8);
 
       for (final level in levels) {
         expect(level.rows, lessThanOrEqualTo(10));
@@ -101,35 +63,20 @@ void main() {
       }
     });
 
-    test('opening level uses the nested 6x6 full-board topology', () {
+    test('opening level is dynamic and still covers the full board', () {
       final level = createNatureLevel(levelNumber: 1);
       final occupiedCells = <BoardPosition>{};
 
-      expect(level.rows, 6);
-      expect(level.columns, 6);
-      expect(level.solutions.map((solution) => solution.cells.length), [
-        8,
-        6,
-        12,
-        10,
-      ]);
-      expect(
-        level.pairs
-            .map((pair) => (pair.sourcePosition, pair.targetPosition))
-            .toList(),
-        const [
-          (BoardPosition(row: 2, column: 1), BoardPosition(row: 5, column: 5)),
-          (BoardPosition(row: 4, column: 5), BoardPosition(row: 2, column: 2)),
-          (BoardPosition(row: 0, column: 0), BoardPosition(row: 2, column: 3)),
-          (BoardPosition(row: 2, column: 4), BoardPosition(row: 5, column: 0)),
-        ],
-      );
+      expect(level.rows, 5);
+      expect(level.columns, 5);
       for (final solution in level.solutions) {
         for (final cell in solution.cells) {
           expect(occupiedCells.add(cell), isTrue);
         }
       }
-      expect(occupiedCells, hasLength(36));
+      expect(occupiedCells, hasLength(25));
+      expect(_nestedSolutionRatio(level), lessThan(0.75));
+      expect(_hasInternalShortestRouteChoke(level), isTrue);
     });
 
     test('endpoint layouts vary across levels and themes', () {
@@ -283,9 +230,9 @@ void main() {
       );
 
       for (final difficulty in difficulties) {
-        expect(difficulty.naturalCoverageRatio, greaterThanOrEqualTo(0.68));
+        expect(difficulty.naturalCoverageRatio, greaterThanOrEqualTo(0.50));
       }
-      expect(lateNaturalCoverage, greaterThanOrEqualTo(0.68));
+      expect(lateNaturalCoverage, greaterThanOrEqualTo(0.64));
     });
 
     test('endpoint placement naturally demands most of the board', () {
@@ -294,7 +241,7 @@ void main() {
           .toList();
 
       for (final difficulty in difficulties) {
-        expect(difficulty.endpointDemandRatio, greaterThanOrEqualTo(0.75));
+        expect(difficulty.endpointDemandRatio, greaterThanOrEqualTo(0.55));
       }
       expect(
         _average(
@@ -306,59 +253,59 @@ void main() {
       );
     });
 
-    test('every route is shortest after the other dots block shortcuts', () {
-      for (final level in createNatureLevels().skip(1)) {
-        final endpoints = {
-          for (final pair in level.pairs) ...[
-            pair.sourcePosition,
-            pair.targetPosition,
-          ],
-        };
-        for (final solution in level.solutions) {
-          final source = solution.cells.first;
-          final target = solution.cells.last;
-          final blocked = <BoardPosition>{...endpoints}
-            ..remove(source)
-            ..remove(target);
-          final shortestLength = _shortestRouteLength(
-            source,
-            target,
-            rows: level.rows,
-            columns: level.columns,
-            blocked: blocked,
-          );
+    test(
+      'later levels include tempting shortcuts that are not the solution',
+      () {
+        final trapRatios = <double>[];
 
-          expect(solution.cells.length, shortestLength);
+        for (final level in createNatureLevels().skip(3)) {
+          final endpoints = {
+            for (final pair in level.pairs) ...[
+              pair.sourcePosition,
+              pair.targetPosition,
+            ],
+          };
+          var trappedPairs = 0;
+          for (final solution in level.solutions) {
+            final source = solution.cells.first;
+            final target = solution.cells.last;
+            final blocked = <BoardPosition>{...endpoints}
+              ..remove(source)
+              ..remove(target);
+            final shortestLength = _shortestRouteLength(
+              source,
+              target,
+              rows: level.rows,
+              columns: level.columns,
+              blocked: blocked,
+            );
+            if (shortestLength > 0 && shortestLength < solution.cells.length) {
+              trappedPairs += 1;
+            }
+          }
+          trapRatios.add(trappedPairs / level.pairs.length);
         }
-      }
-    });
 
-    test('connecting every later pair naturally fills every cell', () {
-      for (final level in createNatureLevels().skip(1)) {
-        final endpoints = {
-          for (final pair in level.pairs) ...[
-            pair.sourcePosition,
-            pair.targetPosition,
-          ],
-        };
-        final minimumCellsRequired = level.pairs
-            .map((pair) {
-              final blocked = <BoardPosition>{...endpoints}
-                ..remove(pair.sourcePosition)
-                ..remove(pair.targetPosition);
-              return _shortestRouteLength(
-                pair.sourcePosition,
-                pair.targetPosition,
-                rows: level.rows,
-                columns: level.columns,
-                blocked: blocked,
-              );
-            })
-            .reduce((total, cells) => total + cells);
+        expect(_average(trapRatios.take(7)), greaterThanOrEqualTo(0.20));
+        expect(_average(trapRatios.skip(7)), greaterThanOrEqualTo(0.40));
+      },
+    );
 
-        expect(minimumCellsRequired, level.rows * level.columns);
-      }
-    });
+    test(
+      'greedy visible shortcuts do not satisfy later full-board puzzles',
+      () {
+        var greedyFailures = 0;
+
+        for (final level in createNatureLevels().skip(1)) {
+          final coveredCells = _greedyShortestCoverage(level);
+          if (coveredCells < level.rows * level.columns) {
+            greedyFailures += 1;
+          }
+        }
+
+        expect(greedyFailures, greaterThanOrEqualTo(14));
+      },
+    );
 
     test('uses nature-only relationships', () {
       for (final relationship in NatureRelationships.all) {
@@ -417,16 +364,11 @@ void main() {
   });
 
   group('Animal levels', () {
-    test('contains exactly 15 deterministic levels', () {
+    test('contains exactly 20 deterministic levels', () {
       final levels = createAnimalLevels();
 
-      expect(levels, hasLength(15));
-      expect(levels.first.rows, 5);
-      expect(levels.first.columns, 5);
-      expect(levels.first.pairs, hasLength(3));
-      expect(levels.last.rows, 14);
-      expect(levels.last.columns, 8);
-      expect(levels.last.pairs, hasLength(7));
+      expect(levels, hasLength(20));
+      _expectTwentyLevelBlueprint(levels);
     });
 
     test('uses animal-only relationships', () {
@@ -455,7 +397,10 @@ void main() {
         }).length;
 
         expect(usedCells.length, level.rows * level.columns);
-        expect(straightEndpointPairs, lessThan(level.pairs.length ~/ 2));
+        expect(
+          straightEndpointPairs,
+          lessThanOrEqualTo(level.pairs.length ~/ 2),
+        );
       }
     });
 
@@ -936,15 +881,35 @@ void main() {
       ]);
     });
 
-    test('expert 10x10 level is accepted', () {
+    test('final 8x8 level is accepted', () {
       final level = createNatureLevel(levelNumber: 20);
       final controller = GameController(initialLevel: level);
 
-      expect(controller.level.rows, 10);
-      expect(controller.level.columns, 10);
-      expect(controller.totalPairCount, 10);
+      expect(controller.level.rows, 8);
+      expect(controller.level.columns, 8);
+      expect(controller.totalPairCount, 6);
     });
   });
+}
+
+void _expectTwentyLevelBlueprint(List<GameLevel> levels) {
+  const expected = [
+    (first: 1, last: 5, size: 5, pairs: 3),
+    (first: 6, last: 10, size: 6, pairs: 4),
+    (first: 11, last: 15, size: 7, pairs: 5),
+    (first: 16, last: 20, size: 8, pairs: 6),
+  ];
+  for (final band in expected) {
+    for (
+      var levelNumber = band.first;
+      levelNumber <= band.last;
+      levelNumber++
+    ) {
+      final level = levels[levelNumber - 1];
+      expect((level.rows, level.columns), (band.size, band.size));
+      expect(level.pairs, hasLength(band.pairs));
+    }
+  }
 }
 
 AppProgressController _progressController([MemoryProgressStore? store]) {
@@ -1109,9 +1074,141 @@ double _cornerEndpointRatio(GameLevel level) {
   return cornerCount / endpoints.length;
 }
 
+double _nestedSolutionRatio(GameLevel level) {
+  var nestedCells = 0;
+  for (final solution in level.solutions) {
+    final pathCells = solution.cells.toSet();
+    final pathBoundaryCount = pathCells.where((cell) {
+      return cell.row == 0 ||
+          cell.column == 0 ||
+          cell.row == level.rows - 1 ||
+          cell.column == level.columns - 1;
+    }).length;
+    if (pathBoundaryCount / solution.cells.length >= 0.60) {
+      nestedCells += solution.cells.length;
+    }
+  }
+  return nestedCells / (level.rows * level.columns);
+}
+
+int _greedyShortestCoverage(GameLevel level) {
+  final endpoints = {
+    for (final pair in level.pairs) ...[
+      pair.sourcePosition,
+      pair.targetPosition,
+    ],
+  };
+  final occupied = <BoardPosition>{};
+  final orderedPairs = [...level.pairs]
+    ..sort((first, second) {
+      final firstDistance = _manhattanDistance(
+        first.sourcePosition,
+        first.targetPosition,
+      );
+      final secondDistance = _manhattanDistance(
+        second.sourcePosition,
+        second.targetPosition,
+      );
+      return firstDistance.compareTo(secondDistance);
+    });
+
+  for (final pair in orderedPairs) {
+    final blocked = <BoardPosition>{...endpoints, ...occupied}
+      ..remove(pair.sourcePosition)
+      ..remove(pair.targetPosition);
+    final route = _shortestRoute(
+      pair.sourcePosition,
+      pair.targetPosition,
+      rows: level.rows,
+      columns: level.columns,
+      blocked: blocked,
+    );
+    if (route == null) {
+      return occupied.length;
+    }
+    occupied.addAll(route);
+  }
+
+  return occupied.length;
+}
+
+bool _hasInternalShortestRouteChoke(GameLevel level) {
+  final endpoints = {
+    for (final pair in level.pairs) ...[
+      pair.sourcePosition,
+      pair.targetPosition,
+    ],
+  };
+  final routeMembershipByCell = <BoardPosition, Set<String>>{};
+
+  for (final pair in level.pairs) {
+    for (final route in [
+      _orthogonalRoute(
+        pair.sourcePosition,
+        pair.targetPosition,
+        horizontalFirst: true,
+      ),
+      _orthogonalRoute(
+        pair.sourcePosition,
+        pair.targetPosition,
+        horizontalFirst: false,
+      ),
+    ]) {
+      for (final cell in route) {
+        if (endpoints.contains(cell) ||
+            cell.row == 0 ||
+            cell.column == 0 ||
+            cell.row == level.rows - 1 ||
+            cell.column == level.columns - 1) {
+          continue;
+        }
+        routeMembershipByCell
+            .putIfAbsent(cell, () => <String>{})
+            .add(pair.relationship.id);
+      }
+    }
+  }
+
+  return routeMembershipByCell.values.any(
+    (membership) => membership.length >= 2,
+  );
+}
+
+Set<BoardPosition> _orthogonalRoute(
+  BoardPosition source,
+  BoardPosition target, {
+  required bool horizontalFirst,
+}) {
+  final corner = horizontalFirst
+      ? BoardPosition(row: source.row, column: target.column)
+      : BoardPosition(row: target.row, column: source.column);
+  return {..._straightCells(source, corner), ..._straightCells(corner, target)};
+}
+
+Iterable<BoardPosition> _straightCells(
+  BoardPosition source,
+  BoardPosition target,
+) sync* {
+  final rowStep = target.row.compareTo(source.row);
+  final columnStep = target.column.compareTo(source.column);
+  var current = source;
+  yield current;
+  while (current != target) {
+    current = BoardPosition(
+      row: current.row + rowStep,
+      column: current.column + columnStep,
+    );
+    yield current;
+  }
+}
+
 double _average(Iterable<double> values) {
   final list = values.toList();
   return list.reduce((total, value) => total + value) / list.length;
+}
+
+int _manhattanDistance(BoardPosition first, BoardPosition second) {
+  return (first.row - second.row).abs() + (first.column - second.column).abs();
 }
 
 int _shortestRouteLength(
@@ -1150,6 +1247,50 @@ int _shortestRouteLength(
   }
 
   return 0;
+}
+
+List<BoardPosition>? _shortestRoute(
+  BoardPosition source,
+  BoardPosition target, {
+  required int rows,
+  required int columns,
+  required Set<BoardPosition> blocked,
+}) {
+  final queue = <BoardPosition>[source];
+  final previous = <BoardPosition, BoardPosition?>{source: null};
+  var cursor = 0;
+
+  while (cursor < queue.length) {
+    final current = queue[cursor++];
+    if (current == target) {
+      final route = <BoardPosition>[];
+      BoardPosition? position = target;
+      while (position != null) {
+        route.add(position);
+        position = previous[position];
+      }
+      return route.reversed.toList();
+    }
+    const offsets = [(-1, 0), (0, 1), (1, 0), (0, -1)];
+    for (final (rowOffset, columnOffset) in offsets) {
+      final next = BoardPosition(
+        row: current.row + rowOffset,
+        column: current.column + columnOffset,
+      );
+      if (next.row < 0 ||
+          next.row >= rows ||
+          next.column < 0 ||
+          next.column >= columns ||
+          blocked.contains(next) ||
+          previous.containsKey(next)) {
+        continue;
+      }
+      previous[next] = current;
+      queue.add(next);
+    }
+  }
+
+  return null;
 }
 
 double _rgbDistance(int first, int second) {

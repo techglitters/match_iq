@@ -290,7 +290,9 @@ class _GameBoardState extends State<GameBoard> with TickerProviderStateMixin {
         _cellCenter(pathBeforeFinish.cells.last, boardSize, level),
       );
       HapticFeedback.mediumImpact();
-      if (controller.allPairsConnected && !controller.isBoardFilled) {
+      if (controller.requireFullBoardCoverage &&
+          controller.allPairsConnected &&
+          !controller.isBoardFilled) {
         final remainingCells = controller.remainingCellCount;
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()

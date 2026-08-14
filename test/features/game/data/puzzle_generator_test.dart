@@ -186,6 +186,89 @@ void main() {
       },
     );
 
+    test('strict validator accepts 25/25 cells and rejects 24/25', () {
+      const validator = PuzzleSolutionValidator();
+      final complete = generatePuzzle(
+        rows: 5,
+        columns: 5,
+        pairCount: 3,
+        seed: 145,
+      );
+      final incompletePaths = [
+        ...complete.paths.take(complete.paths.length - 1),
+        GeneratedPuzzlePath(
+          id: complete.paths.last.id,
+          cells: complete.paths.last.cells.sublist(
+            0,
+            complete.paths.last.cells.length - 1,
+          ),
+        ),
+      ];
+
+      expect(
+        validator
+            .validate(
+              rows: 5,
+              columns: 5,
+              expectedPairCount: 3,
+              paths: complete.paths,
+            )
+            .isValid,
+        isTrue,
+      );
+      expect(
+        validator
+            .validate(
+              rows: 5,
+              columns: 5,
+              expectedPairCount: 3,
+              paths: incompletePaths,
+            )
+            .isValid,
+        isFalse,
+      );
+    });
+
+    test('coverage rejection policy is configurable', () {
+      final generator = PuzzleGenerator(
+        coverageSolver: const _FixedCoverageSolver(
+          PuzzleCoverageAnalysis(
+            hasFullCoverageSolution: true,
+            hasIncompleteCompletion: false,
+            minimumCoveredCellCount: 25,
+            exploredStates: 10,
+            searchExhausted: false,
+          ),
+        ),
+      );
+
+      expect(
+        () => generator.generate(
+          const PuzzleGenerationConfig(
+            rows: 5,
+            columns: 5,
+            pairCount: 3,
+            seed: 7,
+            rejectIncompleteCompletions: true,
+            rejectWhenCoverageSearchIsInconclusive: true,
+          ),
+        ),
+        throwsStateError,
+      );
+      expect(
+        generator.generate(
+          const PuzzleGenerationConfig(
+            rows: 5,
+            columns: 5,
+            pairCount: 3,
+            seed: 7,
+            rejectIncompleteCompletions: true,
+          ),
+        ),
+        isA<GeneratedPuzzle>(),
+      );
+    });
+
     test(
       'uniqueness is optional and uses the injected bounded solver port',
       () {
@@ -228,4 +311,16 @@ class _FixedSolutionCountSolver implements PuzzleUniquenessSolver {
 
   @override
   int countSolutions(GeneratedPuzzle puzzle, {int limit = 2}) => count;
+}
+
+class _FixedCoverageSolver implements PuzzleCoverageSolver {
+  const _FixedCoverageSolver(this.analysis);
+
+  final PuzzleCoverageAnalysis analysis;
+
+  @override
+  PuzzleCoverageAnalysis analyzeCoverage(
+    GeneratedPuzzle puzzle, {
+    int? maxSearchStates,
+  }) => analysis;
 }

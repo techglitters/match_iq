@@ -32,6 +32,8 @@ class AppProgressController extends ChangeNotifier {
 
   bool get freePlayMode => _data.freePlayMode;
 
+  bool get bypassFullBoardCoverage => _data.bypassFullBoardCoverage;
+
   GameTheme get activeTheme {
     return themeById(_data.activeThemeId) ?? ThemeCatalog.natureWorld;
   }
@@ -229,6 +231,14 @@ class AppProgressController extends ChangeNotifier {
       return;
     }
     _data = _data.copyWith(freePlayMode: value);
+    await _saveAndNotify();
+  }
+
+  Future<void> setBypassFullBoardCoverage(bool value) async {
+    if (_data.bypassFullBoardCoverage == value) {
+      return;
+    }
+    _data = _data.copyWith(bypassFullBoardCoverage: value);
     await _saveAndNotify();
   }
 

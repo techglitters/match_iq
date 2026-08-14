@@ -64,6 +64,22 @@ class SettingsScreen extends StatelessWidget {
                       .read<AppProgressController>()
                       .setFreePlayMode(value),
                 ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  secondary: const Icon(Icons.checklist_rounded),
+                  title: const Text('Connections-only completion'),
+                  subtitle: const Text(
+                    'Complete a puzzle after every pair is connected, even when some board cells are empty.',
+                  ),
+                  value: appProgress.bypassFullBoardCoverage,
+                  onChanged: (value) => context
+                      .read<AppProgressController>()
+                      .setBypassFullBoardCoverage(value),
+                ),
               ],
             ),
           ],

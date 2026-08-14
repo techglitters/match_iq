@@ -25,6 +25,9 @@ class PuzzleGenerationConfig {
     this.maxGenerationAttempts = 8,
     this.maxBacktrackSteps = 5000,
     this.requireUniqueSolution = false,
+    this.rejectIncompleteCompletions = false,
+    this.rejectWhenCoverageSearchIsInconclusive = false,
+    this.coverageSearchMaxStates = 50000,
     this.debugLogging = false,
   });
 
@@ -36,7 +39,41 @@ class PuzzleGenerationConfig {
   final int maxGenerationAttempts;
   final int maxBacktrackSteps;
   final bool requireUniqueSolution;
+  final bool rejectIncompleteCompletions;
+  final bool rejectWhenCoverageSearchIsInconclusive;
+  final int coverageSearchMaxStates;
   final bool debugLogging;
+}
+
+class PuzzleCoverageAnalysis {
+  const PuzzleCoverageAnalysis({
+    required this.hasFullCoverageSolution,
+    required this.hasIncompleteCompletion,
+    required this.minimumCoveredCellCount,
+    required this.exploredStates,
+    required this.searchExhausted,
+  });
+
+  final bool hasFullCoverageSolution;
+
+  /// Whether every endpoint pair can be connected legally while leaving at
+  /// least one board cell unused.
+  final bool hasIncompleteCompletion;
+  final int minimumCoveredCellCount;
+  final int exploredStates;
+
+  /// True only when the bounded search explored the complete search space.
+  /// A found counterexample is conclusive even though this remains false.
+  final bool searchExhausted;
+
+  bool get isInconclusive => !hasIncompleteCompletion && !searchExhausted;
+}
+
+abstract interface class PuzzleCoverageSolver {
+  PuzzleCoverageAnalysis analyzeCoverage(
+    GeneratedPuzzle puzzle, {
+    int? maxSearchStates,
+  });
 }
 
 abstract interface class PuzzleUniquenessSolver {
@@ -52,6 +89,7 @@ class PuzzleGenerator {
         const PuzzleSignatureGenerator(),
     this.signatureHistory,
     this.uniquenessSolver,
+    this.coverageSolver,
   }) : _validator = validator,
        _signatureGenerator = signatureGenerator;
 
@@ -59,6 +97,7 @@ class PuzzleGenerator {
   final PuzzleSignatureGenerator _signatureGenerator;
   final PuzzleSignatureHistory? signatureHistory;
   final PuzzleUniquenessSolver? uniquenessSolver;
+  final PuzzleCoverageSolver? coverageSolver;
 
   GeneratedPuzzle generate(PuzzleGenerationConfig config) {
     _validateConfig(config);
@@ -66,6 +105,11 @@ class PuzzleGenerator {
       throw StateError(
         'requireUniqueSolution needs a PuzzleUniquenessSolver. The current '
         'app has no exact solver, so uniqueness is opt-in through this port.',
+      );
+    }
+    if (config.rejectIncompleteCompletions && coverageSolver == null) {
+      throw StateError(
+        'rejectIncompleteCompletions needs a PuzzleCoverageSolver.',
       );
     }
 
@@ -177,6 +221,35 @@ class PuzzleGenerator {
       backtracks: backtracks,
       usedFallback: usedFallback,
     );
+    PuzzleCoverageAnalysis? coverageAnalysis;
+    if (config.rejectIncompleteCompletions) {
+      coverageAnalysis = coverageSolver!.analyzeCoverage(
+        puzzle,
+        maxSearchStates: config.coverageSearchMaxStates,
+      );
+      final rejectionReason = !coverageAnalysis.hasFullCoverageSolution
+          ? 'known solution does not cover the full board'
+          : coverageAnalysis.hasIncompleteCompletion
+          ? 'endpoint layout allows partial-board completion'
+          : coverageAnalysis.isInconclusive &&
+                config.rejectWhenCoverageSearchIsInconclusive
+          ? 'coverage search was inconclusive'
+          : null;
+      if (rejectionReason != null) {
+        if (config.debugLogging) {
+          _debugLogRejection(
+            config: config,
+            seed: seed,
+            paths: paths,
+            generationAttempts: generationAttempts,
+            backtracks: backtracks,
+            analysis: coverageAnalysis,
+            reason: rejectionReason,
+          );
+        }
+        return null;
+      }
+    }
     final solver = uniquenessSolver;
     if (solver != null) {
       final solutionCount = solver.countSolutions(puzzle, limit: 2);
@@ -194,7 +267,7 @@ class PuzzleGenerator {
 
     signatureHistory?.add(signature);
     if (config.debugLogging) {
-      _debugLog(puzzle, valid: true);
+      _debugLog(puzzle, valid: true, coverageAnalysis: coverageAnalysis);
     }
     return puzzle;
   }
@@ -470,7 +543,9 @@ class PuzzleGenerator {
         'with minimum length ${config.minPathLength}.',
       );
     }
-    if (config.maxGenerationAttempts <= 0 || config.maxBacktrackSteps <= 0) {
+    if (config.maxGenerationAttempts <= 0 ||
+        config.maxBacktrackSteps <= 0 ||
+        config.coverageSearchMaxStates <= 0) {
       throw ArgumentError(
         'Generation and backtracking limits must be positive.',
       );
@@ -488,7 +563,11 @@ class PuzzleGenerator {
     return value;
   }
 
-  void _debugLog(GeneratedPuzzle puzzle, {required bool valid}) {
+  void _debugLog(
+    GeneratedPuzzle puzzle, {
+    required bool valid,
+    PuzzleCoverageAnalysis? coverageAnalysis,
+  }) {
     if (!kDebugMode) {
       return;
     }
@@ -502,7 +581,42 @@ class PuzzleGenerator {
       'Valid: $valid\n'
       'Unique solution: ${puzzle.uniquenessStatus.name}\n'
       'Generation attempts: ${puzzle.generationAttempts}\n'
-      'Backtracks: ${puzzle.backtracks}',
+      'Backtracks: ${puzzle.backtracks}\n'
+      'Incomplete completion found: ${coverageAnalysis?.hasIncompleteCompletion ?? 'not checked'}\n'
+      'Minimum completion coverage: ${coverageAnalysis?.minimumCoveredCellCount ?? 'not checked'}/${puzzle.rows * puzzle.columns}\n'
+      'Coverage-search states: ${coverageAnalysis?.exploredStates ?? 0}\n'
+      'Coverage-search exhausted: ${coverageAnalysis?.searchExhausted ?? false}\n'
+      'Candidate accepted: yes',
+    );
+  }
+
+  void _debugLogRejection({
+    required PuzzleGenerationConfig config,
+    required int seed,
+    required List<GeneratedPuzzlePath> paths,
+    required int generationAttempts,
+    required int backtracks,
+    required PuzzleCoverageAnalysis analysis,
+    required String reason,
+  }) {
+    if (!kDebugMode) {
+      return;
+    }
+    debugPrint(
+      'Generated puzzle candidate\n'
+      'Board: ${config.rows}x${config.columns}\n'
+      'Seed: $seed\n'
+      'Pairs: ${paths.length}\n'
+      'Path lengths: ${paths.map((path) => path.cells.length).toList()}\n'
+      'Covered cells: ${paths.expand((path) => path.cells).toSet().length}/${config.rows * config.columns}\n'
+      'Generation attempts: $generationAttempts\n'
+      'Backtracks: $backtracks\n'
+      'Incomplete completion found: ${analysis.hasIncompleteCompletion}\n'
+      'Minimum completion coverage: ${analysis.minimumCoveredCellCount}/${config.rows * config.columns}\n'
+      'Coverage-search states: ${analysis.exploredStates}\n'
+      'Coverage-search exhausted: ${analysis.searchExhausted}\n'
+      'Candidate accepted: no\n'
+      'Rejected: $reason',
     );
   }
 }
@@ -514,12 +628,17 @@ GeneratedPuzzle generatePuzzle({
   int? seed,
   int minPathLength = 3,
   bool requireUniqueSolution = false,
+  bool rejectIncompleteCompletions = false,
+  bool rejectWhenCoverageSearchIsInconclusive = false,
+  int coverageSearchMaxStates = 50000,
   bool debugLogging = false,
   PuzzleUniquenessSolver? uniquenessSolver,
+  PuzzleCoverageSolver? coverageSolver,
   PuzzleSignatureHistory? signatureHistory,
 }) {
   return PuzzleGenerator(
     uniquenessSolver: uniquenessSolver,
+    coverageSolver: coverageSolver,
     signatureHistory:
         signatureHistory ?? (seed == null ? _defaultSignatureHistory : null),
   ).generate(
@@ -530,13 +649,18 @@ GeneratedPuzzle generatePuzzle({
       seed: seed,
       minPathLength: minPathLength,
       requireUniqueSolution: requireUniqueSolution,
+      rejectIncompleteCompletions: rejectIncompleteCompletions,
+      rejectWhenCoverageSearchIsInconclusive:
+          rejectWhenCoverageSearchIsInconclusive,
+      coverageSearchMaxStates: coverageSearchMaxStates,
       debugLogging: debugLogging,
     ),
   );
 }
 
-final PuzzleSignatureHistory _defaultSignatureHistory =
-    PuzzleSignatureHistory(capacity: 50);
+final PuzzleSignatureHistory _defaultSignatureHistory = PuzzleSignatureHistory(
+  capacity: 50,
+);
 
 class _TraversalGrowth {
   const _TraversalGrowth({required this.cells, required this.backtracks});

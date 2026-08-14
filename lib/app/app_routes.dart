@@ -12,6 +12,7 @@ import '../features/settings/presentation/settings_screen.dart';
 import '../features/splash/presentation/splash_screen.dart';
 import '../features/themes/data/theme_catalog.dart';
 import '../features/themes/domain/game_theme.dart';
+import '../features/themes/presentation/controllers/app_progress_controller.dart';
 import '../features/themes/presentation/theme_detail_screen.dart';
 import '../features/themes/presentation/theme_selection_screen.dart';
 
@@ -194,7 +195,12 @@ class _DailyPuzzleScope extends StatelessWidget {
     );
 
     return ChangeNotifierProvider(
-      create: (_) => GameController(initialLevel: challenge.level),
+      create: (context) => GameController(
+        initialLevel: challenge.level,
+        requireFullBoardCoverage: !context
+            .read<AppProgressController>()
+            .bypassFullBoardCoverage,
+      ),
       child: GameScreen(
         themeId: challenge.theme.id,
         levelNumber: challenge.levelNumber,
@@ -239,7 +245,12 @@ class _ThemeGameScope extends StatelessWidget {
     final initialLevel = theme.levels[clampedLevelNumber - 1];
 
     return ChangeNotifierProvider(
-      create: (_) => GameController(initialLevel: initialLevel),
+      create: (context) => GameController(
+        initialLevel: initialLevel,
+        requireFullBoardCoverage: !context
+            .read<AppProgressController>()
+            .bypassFullBoardCoverage,
+      ),
       child: GameScreen(
         themeId: theme.id,
         levelNumber: initialLevel.levelNumber,

@@ -14,6 +14,7 @@ class GameController extends ChangeNotifier {
     List<GameLevel>? levels,
     GameLevelBuilder? levelBuilder,
     int? maxLevelCount,
+    this.requireFullBoardCoverage = true,
   }) : _levels = List<GameLevel>.of(levels ?? [initialLevel]),
        _levelBuilder = levelBuilder,
        _maxLevelCount = _resolveMaxLevelCount(levels, maxLevelCount) {
@@ -30,6 +31,7 @@ class GameController extends ChangeNotifier {
   final List<GameLevel> _levels;
   final GameLevelBuilder? _levelBuilder;
   final int _maxLevelCount;
+  final bool requireFullBoardCoverage;
   int currentLevelIndex = 0;
   late GameLevel level;
   Map<String, GamePath> completedPaths = <String, GamePath>{};
@@ -401,7 +403,8 @@ class GameController extends ChangeNotifier {
   }
 
   bool checkLevelCompletion() {
-    isLevelComplete = allPairsConnected && isBoardFilled;
+    isLevelComplete =
+        allPairsConnected && (!requireFullBoardCoverage || isBoardFilled);
     return isLevelComplete;
   }
 

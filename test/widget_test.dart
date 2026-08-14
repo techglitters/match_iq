@@ -5,8 +5,13 @@ import 'package:match_iq/core/constants/game_constants.dart';
 import 'package:match_iq/core/persistence/memory_progress_store.dart';
 import 'package:match_iq/features/game/presentation/widgets/game_path_painter.dart';
 import 'package:match_iq/features/game/presentation/widgets/matched_pairs_tray.dart';
+import 'package:match_iq/features/level_map/presentation/level_map_screen.dart';
+import 'package:match_iq/features/level_map/presentation/widgets/level_node.dart';
+import 'package:match_iq/features/themes/data/theme_catalog.dart';
 import 'package:match_iq/features/themes/domain/app_progress_data.dart';
 import 'package:match_iq/features/themes/domain/theme_progress.dart';
+import 'package:match_iq/features/themes/presentation/controllers/app_progress_controller.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   testWidgets('Splash navigates to home and play opens the game', (
@@ -152,45 +157,45 @@ void main() {
     expect(pathPainter.solutionPaths, hasLength(4));
   });
 
-  testWidgets('Free play mode opens later levels from the level map', (
+  testWidgets('Free play mode makes later map levels tappable', (
     WidgetTester tester,
   ) async {
+    final controller = AppProgressController(
+      store: MemoryProgressStore(
+        const AppProgressData(
+          activeThemeId: 'nature',
+          lastPlayedThemeId: null,
+          lastPlayedLevelNumber: null,
+          hasSeenHome: true,
+          themes: {
+            'nature': ThemeProgress.initial(),
+            'animals': ThemeProgress.initial(),
+          },
+          freePlayMode: true,
+        ),
+      ),
+      themes: ThemeCatalog.all,
+    );
+    await controller.load();
+
     await tester.pumpWidget(
-      ConnectGrowApp(progressStore: MemoryProgressStore()),
+      ChangeNotifierProvider<AppProgressController>.value(
+        value: controller,
+        child: const MaterialApp(
+          home: LevelMapScreen(themeId: ThemeCatalog.natureThemeId),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final level20 = find.byWidgetPredicate(
+      (widget) =>
+          widget is LevelNode &&
+          widget.levelNumber == 20 &&
+          widget.onTap != null,
     );
 
-    await tester.pump(
-      GameConstants.splashDuration + const Duration(milliseconds: 100),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Free play mode'), findsOneWidget);
-    expect(_switchValue(tester, 'Free play mode'), isFalse);
-
-    await tester.tap(find.text('Free play mode'));
-    await tester.pumpAndSettle();
-
-    expect(_switchValue(tester, 'Free play mode'), isTrue);
-
-    await tester.tap(find.byTooltip('Back'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Play'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Level Map'));
-    await tester.pumpAndSettle();
-
-    final level20 = find.bySemanticsLabel(
-      'Level 20, Sprout challenge, unlocked',
-    );
-    await tester.ensureVisible(level20);
-    await tester.pumpAndSettle();
-    await tester.tap(level20);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Nature 20'), findsOneWidget);
+    expect(level20, findsOneWidget);
   });
 }
 

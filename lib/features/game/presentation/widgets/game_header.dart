@@ -18,9 +18,14 @@ class GameHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final instruction =
-        controller.allPairsConnected && !controller.isBoardFilled
+        controller.requireFullBoardCoverage &&
+            controller.allPairsConnected &&
+            !controller.isBoardFilled
         ? '${controller.remainingCellCount} cells still need a path'
-        : subtitle ?? 'Connect every pair and fill the board';
+        : subtitle ??
+              (controller.requireFullBoardCoverage
+                  ? 'Connect every pair and fill the board'
+                  : 'Connect every matching pair');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
