@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -35,6 +37,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   bool _dialogShown = false;
   bool _savingCompletion = false;
+  Timer? _nextLevelWarmupTimer;
 
   @override
   void initState() {
@@ -50,6 +53,35 @@ class _GameScreenState extends State<GameScreen> {
         themeId: widget.themeId,
         levelNumber: widget.levelNumber,
       );
+      _scheduleNextLevelWarmup();
+    });
+  }
+
+  @override
+  void dispose() {
+    _nextLevelWarmupTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleNextLevelWarmup() {
+    if (widget.isDailyPuzzle || widget.themeId != ThemeCatalog.natureThemeId) {
+      return;
+    }
+    _nextLevelWarmupTimer?.cancel();
+    _nextLevelWarmupTimer = Timer(const Duration(milliseconds: 700), () {
+      if (!mounted) {
+        return;
+      }
+      final theme = context.read<AppProgressController>().themeById(
+        widget.themeId,
+      );
+      final nextLevelIndex = widget.levelNumber;
+      if (theme == null || nextLevelIndex >= theme.levels.length) {
+        return;
+      }
+      // Nature's lazy level list caches this generated board. Warming after
+      // the first frame moves the work away from the completion transition.
+      theme.levels[nextLevelIndex];
     });
   }
 

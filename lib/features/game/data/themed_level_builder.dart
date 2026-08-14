@@ -336,6 +336,7 @@ void _addPathLayoutCandidate(
     paths: paths,
     rows: rows,
     columns: columns,
+    includeKShortestAnalysis: false,
   );
   if (isStructuralChoke &&
       (difficulty.endpointDemandRatio < 0.75 ||
@@ -376,11 +377,13 @@ List<List<BoardPosition>> _generateProgressivePaths({
       progression == ThemedLevelProgression.chaptered && levelNumber % 10 == 0;
   final baseSeed = _stableSeed('$layoutKey:$levelNumber:$rows:$columns');
   final candidates = <_PathLayoutCandidate>[];
+  // A broad inexpensive pass supplies geometry variety. Expensive
+  // K-shortest analysis is deferred until the shortlist below.
   final candidateCount =
-      48 +
-      (progress * progress * 160).round() +
-      (pairCount * progress * 8).round() +
-      (isBossLevel ? 48 : 0);
+      36 +
+      (progress * progress * 72).round() +
+      (pairCount * progress * 4).round() +
+      (isBossLevel ? 24 : 0);
 
   if (rows == 5 && columns == 5 && pairCount == 3) {
     final openingRandom = math.Random(baseSeed);
@@ -496,6 +499,30 @@ List<List<BoardPosition>> _generateProgressivePaths({
       pairCount: pairCount,
     );
   }
+
+  final quickRanked = [...candidates]..sort(_comparePathLayoutPriority);
+  final shortlistCount = 10 + (progress * 12).round() + (isBossLevel ? 6 : 0);
+  final structuralShortlist = quickRanked
+      .where((candidate) => candidate.isStructuralChoke)
+      .toList();
+  final rawShortlist = <_PathLayoutCandidate>{
+    ...quickRanked.reversed.take(shortlistCount),
+    ...structuralShortlist.reversed.take(8),
+  };
+  candidates
+    ..clear()
+    ..addAll([
+      for (final candidate in rawShortlist)
+        _PathLayoutCandidate(
+          paths: candidate.paths,
+          difficulty: _analyzePathLayout(
+            paths: candidate.paths,
+            rows: rows,
+            columns: columns,
+          ),
+          isStructuralChoke: candidate.isStructuralChoke,
+        ),
+    ]);
 
   candidates.sort(
     (first, second) =>
@@ -767,7 +794,11 @@ bool _passesCoverageSearch(
     }
     return true;
   }
-  const solver = FullBoardPuzzleSolver(defaultMaxSearchStates: 50000);
+  // K-shortest scoring has already rejected easy joint completions. This
+  // final search remains a bounded counterexample check, so spending the old
+  // 50,000-state budget only delayed navigation when an inconclusive result
+  // is accepted by policy anyway.
+  const solver = FullBoardPuzzleSolver(defaultMaxSearchStates: 8000);
   final generatedPaths = <GeneratedPuzzlePath>[
     for (var index = 0; index < candidate.paths.length; index += 1)
       GeneratedPuzzlePath(id: index, cells: candidate.paths[index]),
@@ -1345,6 +1376,7 @@ ThemedLevelDifficulty _analyzePathLayout({
   required List<List<BoardPosition>> paths,
   required int rows,
   required int columns,
+  bool includeKShortestAnalysis = true,
 }) {
   if (paths.isEmpty) {
     return const ThemedLevelDifficulty(
@@ -1443,12 +1475,20 @@ ThemedLevelDifficulty _analyzePathLayout({
     rows: rows,
     columns: columns,
   );
-  final kShortestAnalysis = _analyzeKShortestRoutes(
-    paths,
-    endpointPairs,
-    rows: rows,
-    columns: columns,
-  );
+  final kShortestAnalysis = includeKShortestAnalysis
+      ? _analyzeKShortestRoutes(
+          paths,
+          endpointPairs,
+          rows: rows,
+          columns: columns,
+        )
+      : const _KShortestDifficultyAnalysis.empty();
+  final kShortestScore = includeKShortestAnalysis
+      ? kShortestAnalysis.routeConflictRatio * 0.10 +
+            kShortestAnalysis.misleadingRouteRatio * 0.14 +
+            kShortestAnalysis.alternativeDiversity * 0.04 +
+            (kShortestAnalysis.easyJointCompletionFound ? 0 : 0.06)
+      : 0.0;
   final score =
       100 *
           (interiorRatio * 0.04 +
@@ -1463,10 +1503,7 @@ ThemedLevelDifficulty _analyzePathLayout({
               boardDistributionRatio * 0.09 +
               naturalCoverageRatio * 0.08 +
               shortcutTrapRatio * 0.12 +
-              kShortestAnalysis.routeConflictRatio * 0.10 +
-              kShortestAnalysis.misleadingRouteRatio * 0.14 +
-              kShortestAnalysis.alternativeDiversity * 0.04 +
-              (kShortestAnalysis.easyJointCompletionFound ? 0 : 0.06)) +
+              kShortestScore) +
       ((rows * columns - 36) / 64).clamp(0, 1) * 12;
   return ThemedLevelDifficulty(
     score: score,
